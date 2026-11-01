@@ -535,10 +535,27 @@ def run_conversion(cfg: dict | None = None) -> dict:
         )
 
     bounces = check_inbox_bounces()
+    rescue = {}
+    try:
+        from agents.contact_rescue import apply_rescue_and_send
+
+        if int(bounces.get("outreach_updated") or 0) > 0 or int(bounces.get("bounces_seen") or 0) > 0:
+            activity.log(
+                "Dead inboxes detected — Contact Rescue finding alternate emails…",
+                agent="Contact Rescue",
+                step=True,
+                meta={"phase": "rescue"},
+            )
+            rescue = apply_rescue_and_send(dry_run=False)
+    except Exception as exc:
+        activity.log(f"Contact Rescue skipped: {exc}", level="warn", agent="Contact Rescue")
+        rescue = {"error": str(exc)[:200]}
+
     snap = conversion_snapshot()
     summary = (
         f"Conversion: {send_stats.get('sent', 0)} new sends, "
         f"{follow_stats.get('sent', 0)} follow-ups · "
+        f"rescue sent {rescue.get('sent', 0)} · "
         f"{snap['awaiting_reply']} awaiting reply · "
         f"{snap['drafts_ready']} still queued"
     )
@@ -549,6 +566,7 @@ def run_conversion(cfg: dict | None = None) -> dict:
         "send": send_stats,
         "followups": follow_stats,
         "bounces": bounces,
+        "rescue": rescue,
         "snapshot": snap,
         "auto_send": c["auto_send"],
     }

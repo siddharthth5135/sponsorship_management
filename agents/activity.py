@@ -174,6 +174,11 @@ def status_payload(limit: int = 60) -> dict:
                 "does": "Converts clients: writes pitches and auto-sends emails from your Gmail without asking each time. Follows up if no reply. Logs every send on this page.",
             },
             {
+                "id": "contact_rescue",
+                "name": "Contact Rescue",
+                "does": "When Gmail says address not found, finds alternate public emails/phones and re-sends: we want you on the Blithchron sponsor board + brochure.",
+            },
+            {
                 "id": "pitch_writer",
                 "name": "Pitch Writer",
                 "does": "Builds Blithchron + Gujarat sponsorship pitches (email + WhatsApp-ready copy) aimed at getting a call or yes.",

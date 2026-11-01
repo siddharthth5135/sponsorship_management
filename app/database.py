@@ -1,10 +1,17 @@
 import sqlite3
+import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
 from app.paths import db_path
 
 DB_PATH: Path = db_path()
+
+# One writer at a time across request threads + background Closer.
+# RLock: same thread may re-enter ONLY if we never open a 2nd connection while one is open.
+# Rule: never call get_conn()/activity.log() while already inside another get_conn().
+_db_lock = threading.RLock()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
@@ -179,19 +186,53 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
-@contextmanager
-def get_conn():
+def _connect() -> sqlite3.Connection:
     path = db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=30)
+    conn = sqlite3.connect(path, timeout=60, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute("PRAGMA busy_timeout=60000")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA temp_store=MEMORY")
+    return conn
+
+
+@contextmanager
+def get_conn():
+    """Serialized SQLite access — never nest get_conn / activity.log inside another get_conn."""
+    _db_lock.acquire()
+    conn = None
     try:
-        yield conn
-        conn.commit()
+        last_exc: Exception | None = None
+        for attempt in range(8):
+            try:
+                conn = _connect()
+                break
+            except sqlite3.OperationalError as exc:
+                last_exc = exc
+                if "locked" in str(exc).lower() or "busy" in str(exc).lower():
+                    time.sleep(0.2 * (attempt + 1))
+                    continue
+                raise
+        else:
+            raise sqlite3.OperationalError(str(last_exc) if last_exc else "database is locked")
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
     finally:
-        conn.close()
+        _db_lock.release()
 
 
 def row_to_dict(row: sqlite3.Row | None) -> dict | None:

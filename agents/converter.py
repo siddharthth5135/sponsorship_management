@@ -90,9 +90,8 @@ def _refresh_blithchron_pitches() -> int:
 
 def _queue_phone_pitches(limit: int = 20) -> int:
     """Log WhatsApp-ready pitches for phone-only leads (no email gateway)."""
-    queued = 0
     with get_conn() as conn:
-        rows = conn.execute(
+        rows = [dict(r) for r in conn.execute(
             """
             SELECT * FROM brands
             WHERE segment IN ('blithchron27','blithchron27_local','hunter')
@@ -102,25 +101,24 @@ def _queue_phone_pitches(limit: int = 20) -> int:
             LIMIT ?
             """,
             (limit,),
-        ).fetchall()
-        for row in rows:
-            b = dict(row)
-            text = pitch_text(b)
-            activity.log(
-                f"WhatsApp pitch ready: {b['name']}",
-                level="info",
-                agent="Closer",
-                detail=f"Phone {b.get('contact_phone')} — open Blithchron page to 1-tap send. Preview: {text[:160]}…",
-                meta={"brand_id": b["id"], "channel": "whatsapp", "phone": b.get("contact_phone")},
-            )
-            queued += 1
-    return queued
+        ).fetchall()]
+    # Log AFTER DB connection closed — never nest get_conn
+    for b in rows:
+        text = pitch_text(b)
+        activity.log(
+            f"WhatsApp pitch ready: {b['name']}",
+            level="info",
+            agent="Closer",
+            detail=f"Phone {b.get('contact_phone')} — open Blithchron page to 1-tap send. Preview: {text[:160]}…",
+            meta={"brand_id": b["id"], "channel": "whatsapp", "phone": b.get("contact_phone")},
+        )
+    return len(rows)
 
 
 def queue_brochure_to_everyone() -> int:
     """Create approved brochure-share drafts for every Blithchron email lead not yet sent the PDF."""
     sender = sender_profile()
-    queued = 0
+    queued_names: list[str] = []
     with get_conn() as conn:
         brands = conn.execute(
             """
@@ -176,14 +174,15 @@ def queue_brochure_to_everyone() -> int:
                     """,
                     (b["id"], subject, body, to_name, to_email, sender.get("email") or ""),
                 )
-            queued += 1
-            activity.log(
-                f"Brochure queued → {b['name']}",
-                agent="Closer",
-                detail=BLITHCHRON_BROCHURE_URL,
-                meta={"brand_id": b["id"], "channel": "brochure"},
-            )
-    return queued
+            queued_names.append(b["name"])
+    activity.log(
+        f"Brochure queued for {len(queued_names)} brand(s)",
+        level="success",
+        agent="Closer",
+        detail=BLITHCHRON_BROCHURE_URL
+        + ((" · " + ", ".join(queued_names[:12])) if queued_names else " · nothing new"),
+    )
+    return len(queued_names)
 
 
 def prepare_pitches() -> dict:

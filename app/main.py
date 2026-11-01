@@ -708,15 +708,16 @@ def send_all_outreach(target_type: str = Form(...)):
                 (target_type,),
             ).fetchall()
         ]
-        if not rows:
-            return _outreach_redirect(
-                error="Nothing to send — no drafts with an email address left on this page.",
-                page=page,
-            )
-        try:
-            sent_n, errors = send_many(rows)
-        except MailerError as exc:
-            return _outreach_redirect(error=str(exc), page=page)
+    if not rows:
+        return _outreach_redirect(
+            error="Nothing to send — no drafts with an email address left on this page.",
+            page=page,
+        )
+    try:
+        sent_n, errors = send_many(rows)
+    except MailerError as exc:
+        return _outreach_redirect(error=str(exc), page=page)
+    with get_conn() as conn:
         for item in rows:
             if item.get("_ok"):
                 conn.execute(
@@ -1186,28 +1187,47 @@ def blithchron_page(request: Request):
 def blithchron_send_brochure():
     """Queue + send official brochure Drive link to every Blithchron email lead."""
     from agents.converter import auto_send_pitches, queue_brochure_to_everyone
+    from agents.live_hunter import set_paused
 
     if not gmail_ready():
         return _outreach_redirect(
             error="Add Gmail App Password on Outreach first — then tap Send brochure again.",
             page="/blithchron",
         )
-    queued = queue_brochure_to_everyone()
-    result = auto_send_pitches(max_sends=max(50, queued or 12), delay=1.0)
-    sent = int(result.get("sent") or 0)
-    errs = result.get("errors") or []
-    msg = f"Brochure link queued for {queued}. Sent {sent} emails with the PDF."
-    if errs:
-        return _outreach_redirect(
-            msg=msg,
-            error=f"{len(errs)} failed — check Closer feed / send errors.",
-            page="/blithchron",
-        )
-    return _outreach_redirect(msg, page="/blithchron")
+    # Pause background Closer so it does not fight SQLite while we blast
+    set_paused(True)
+    try:
+        queued = queue_brochure_to_everyone()
+        # Prefer brochure rows; send in batches until queue empty or cap
+        sent_total = 0
+        all_errors: list[str] = []
+        remaining = max(queued, 1)
+        while remaining > 0 and sent_total < 200:
+            batch = min(25, remaining)
+            result = auto_send_pitches(max_sends=batch, delay=0.8)
+            batch_sent = int(result.get("sent") or 0)
+            sent_total += batch_sent
+            all_errors.extend(result.get("errors") or [])
+            if batch_sent == 0:
+                break
+            remaining = max(0, remaining - batch_sent)
+        msg = f"Brochure link queued for {queued}. Sent {sent_total} emails with the PDF."
+        if all_errors:
+            return _outreach_redirect(
+                msg=msg,
+                error=f"{len(all_errors)} failed — check Closer feed / send errors.",
+                page="/blithchron",
+            )
+        return _outreach_redirect(msg, page="/blithchron")
+    except Exception as exc:
+        return _outreach_redirect(error=f"Brochure send failed: {exc}", page="/blithchron")
+    finally:
+        set_paused(False)
 
 
 @app.post("/blithchron/send-all")
 def blithchron_send_all():
+    # Fetch rows, close DB, then SMTP — never hold SQLite open during Gmail
     with get_conn() as conn:
         rows = [
             dict(r)
@@ -1220,15 +1240,16 @@ def blithchron_send_all():
                 """
             ).fetchall()
         ]
-        if not rows:
-            return _outreach_redirect(
-                error="No Blithchron drafts with email — use WhatsApp / LinkedIn queue on this page.",
-                page="/blithchron",
-            )
-        try:
-            sent_n, errors = send_many(rows)
-        except MailerError as exc:
-            return _outreach_redirect(error=str(exc), page="/blithchron")
+    if not rows:
+        return _outreach_redirect(
+            error="No Blithchron drafts with email — use WhatsApp / LinkedIn queue on this page.",
+            page="/blithchron",
+        )
+    try:
+        sent_n, errors = send_many(rows)
+    except MailerError as exc:
+        return _outreach_redirect(error=str(exc), page="/blithchron")
+    with get_conn() as conn:
         for item in rows:
             if item.get("_ok"):
                 conn.execute(

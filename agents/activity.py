@@ -96,21 +96,25 @@ def log(
         _recent.appendleft(entry)
         snapshot = dict(entry)
 
-    with get_conn() as conn:
-        cur = conn.execute(
-            """
-            INSERT INTO agent_activity (level, agent_name, message, detail, meta_json)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                snapshot["level"],
-                snapshot["agent_name"],
-                snapshot["message"],
-                snapshot["detail"],
-                json.dumps(snapshot["meta"]),
-            ),
-        )
-        snapshot["id"] = cur.lastrowid
+    try:
+        with get_conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO agent_activity (level, agent_name, message, detail, meta_json)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    snapshot["level"],
+                    snapshot["agent_name"],
+                    snapshot["message"],
+                    snapshot["detail"],
+                    json.dumps(snapshot["meta"]),
+                ),
+            )
+            snapshot["id"] = cur.lastrowid
+    except Exception:
+        # Never crash the app on activity logging (esp. SQLite locked / OneDrive)
+        snapshot["id"] = 0
     return snapshot
 
 

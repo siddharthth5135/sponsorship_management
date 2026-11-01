@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Your tasks — SponsorDesk{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>Your tasks</h1>
+  <p>Only you can complete these — calls, approvals, and closings.</p>
+</header>
+{% if tasks %}
+<ul class="task-list">
+  {% for t in tasks %}
+  <li class="{% if t.status == 'done' %}done{% endif %}">
+    <strong>{{ t.title }}</strong>
+    <p>{{ t.description }}</p>
+    <span class="tag {% if t.priority == 'high' %}warn{% endif %}">{{ t.priority }}</span>
+    <span class="tag">{{ t.created_by_agent }}</span>
+    {% if t.status == 'pending' %}
+    <form method="post" action="/tasks/{{ t.id }}/done" style="margin-top:0.75rem">
+      <button type="submit" class="btn-sm">Mark complete</button>
+    </form>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card empty">
+  <div class="empty-icon">✓</div>
+  <p>All clear. Run <code>python -m agents.orchestrator --daily</code> after adding CRM data.</p>
+</div>
+{% endif %}
+{% endblock %}

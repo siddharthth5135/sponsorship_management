@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Brands — SponsorDesk{% endblock %}
+{% block content %}
+<header class="page-header page-header-row">
+  <div>
+    <h1>Brands</h1>
+    <p>SME + education / IT training first. Sorted by conversion chance — not by who is famous.</p>
+  </div>
+  <button type="button" class="btn" data-toggle="#add-brand-panel">+ Add brand</button>
+</header>
+
+<section id="add-brand-panel" class="card collapsible">
+  <h2>Add brand</h2>
+  <form method="post" action="/brands" class="form form-grid">
+    <label>Brand name<input name="name" required></label>
+    <label>City (or “Pan-India”)<input name="city" required placeholder="Ahmedabad"></label>
+    <label>Industry<input name="category" required placeholder="IT training / coding courses"></label>
+    <label>Goal
+      <select name="goal">
+        <option value="leads">Leads / admissions</option>
+        <option value="sampling">Sampling</option>
+        <option value="awareness">Brand awareness</option>
+      </select>
+    </label>
+    <label class="span-2">What does the brand do?<textarea name="description"></textarea></label>
+    <fieldset class="span-2 cat-checks">
+      <legend>Event types this brand fits</legend>
+      {% for c in CATEGORIES %}
+      <label><input type="checkbox" name="target_categories" value="{{ c }}"> {{ c }}</label>
+      {% endfor %}
+    </fieldset>
+    <label>Budget min (INR)<input name="budget_min" type="number" min="0" value="0"></label>
+    <label>Budget max (INR)<input name="budget_max" type="number" min="0" value="0"></label>
+    <label>Contact name<input name="contact_name"></label>
+    <label>Contact role / notes<input name="contact_role" placeholder="Admissions / marketing"></label>
+    <label>Email<input name="contact_email" type="email"></label>
+    <label>Phone<input name="contact_phone"></label>
+    <label>Website<input name="website" type="url"></label>
+    <label>LinkedIn<input name="linkedin_url" type="url"></label>
+    <label>Status
+      <select name="status">
+        <option value="prospect">Prospect</option>
+        <option value="researching">Researching</option>
+        <option value="active_buyer">Active buyer</option>
+      </select>
+    </label>
+    <label class="span-2">Notes<textarea name="notes"></textarea></label>
+    <div class="span-2"><button type="submit">Save brand</button></div>
+  </form>
+</section>
+
+{% set sections = [
+  ('high', 'High conversion — pitch this week', 'Education, computer classes, IT training, edtech. They need student admissions — highest chance they take a call.'),
+  ('possible', 'Possible conversion — solid mid-market', 'Local F&B / franchise brands. Not giants. Good if you bring a clear, negotiable rate.'),
+  ('watch', 'Latent — fit audience, not actively hunting sponsors', 'May say yes later. Don’t lead with these; warm them after you close one or two high-tier deals.')
+] %}
+
+{% for tier, title, hint in sections %}
+{% set bucket = brands|selectattr('conversion_tier', 'equalto', tier)|list %}
+{% if not bucket and tier == 'high' %}
+  {% set bucket = brands|selectattr('conversion_tier', 'undefined')|list %}
+{% endif %}
+<section class="card card-flush brand-section">
+  <div class="list-toolbar">
+    <div>
+      <h2 class="list-title">{{ title }} <span class="count-badge">{{ brands|selectattr('conversion_tier','equalto',tier)|list|length }}</span></h2>
+      <p class="list-sub">{{ hint }}</p>
+    </div>
+  </div>
+  <div class="entity-list">
+    {% for b in brands if b.conversion_tier == tier %}
+    <article class="entity-card" data-searchable="{{ b.name }} {{ b.city }} {{ b.category }} {{ b.description }}">
+      <div class="entity-main">
+        <div class="entity-head">
+          <h3>{{ b.name }}</h3>
+          <span class="pill pill-{{ 'ok' if tier == 'high' else 'info' if tier == 'possible' else 'neutral' }}">
+            {{ 'High chance' if tier == 'high' else 'Possible' if tier == 'possible' else 'Latent' }}
+          </span>
+        </div>
+        <div class="entity-meta">
+          <span>{{ b.category }}</span>
+          <span class="dot">·</span><span>{{ b.city }}</span>
+          <span class="dot">·</span>
+          <span>{% if b.intent_signal == 'active' %}Actively growing / admissions-led{% else %}Not publicly seeking sponsors — may still say yes{% endif %}</span>
+        </div>
+        {% if b.description %}<p class="desc">{{ b.description }}</p>{% endif %}
+        {% if b.target_categories %}
+        <div class="cat-list">
+          {% for c in ui.split_csv(b.target_categories) %}<span class="tag">{{ c }}</span>{% endfor %}
+        </div>
+        {% endif %}
+        <div class="contact-block">
+          <div class="contact-title">How to reach them</div>
+          <div class="contact-row"><span>Who</span><strong>{{ b.contact_name or 'General inbox' }}</strong></div>
+          {% if b.contact_role %}<div class="contact-row"><span>Notes</span>{{ b.contact_role }}</div>{% endif %}
+          {% set channels = ui.reach_channels(b.contact_email, b.contact_phone, b.linkedin_url, b.website, b.source_url) %}
+          {% for ch in channels %}
+          <div class="contact-row"><span>{{ ch.label }}</span><a href="{{ ch.href }}" {% if ch.kind not in ['email','phone'] %}target="_blank" rel="noopener"{% endif %}>{{ ch.value }}</a></div>
+          {% else %}
+          <div class="contact-row"><span>Reach</span><em class="muted">Add email, LinkedIn or website</em></div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="entity-side">
+        <a class="btn btn-sm btn-secondary" href="/outreach/brands#brand-{{ b.id }}">Open draft</a>
+        <form method="post" action="/brands/{{ b.id }}/delete" onsubmit="return confirm('Remove this brand?');">
+          <button type="submit" class="btn btn-sm btn-ghost">Remove</button>
+        </form>
+      </div>
+    </article>
+    {% else %}
+    <div class="empty-sm"><p>No brands in this section yet.</p></div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

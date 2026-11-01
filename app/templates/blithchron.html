@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}Blithchron '27 — SponsorDesk{% endblock %}
+{% block content %}
+<header class="page-header page-header-row">
+  <div>
+    <h1>Blithchron '27</h1>
+    <p>National {{ total }} · Local AMD/GN {{ local_total }} · Email {{ emailable }} · WhatsApp queue {{ wa_count }} · No-email national {{ no_email_count }}</p>
+  </div>
+  <div class="outreach-header-actions">
+    {% if sendable_count or sendable_local_count %}
+    <form method="post" action="/blithchron/send-all" onsubmit="return confirm('Send all Blithchron emails with addresses (national + local) from {{ sender.email }}?');">
+      <button type="submit" class="btn">Email all with address ({{ sendable_count + sendable_local_count }})</button>
+    </form>
+    {% endif %}
+    {% if wa_count %}
+    <button type="button" class="btn" id="wa-start">WhatsApp next ({{ wa_count }})</button>
+    <button type="button" class="btn btn-secondary" id="wa-copy-all">Copy all WA pitches</button>
+    {% endif %}
+    {% if gmail_ready %}
+    <form method="post" action="/outreach/check-bounces">
+      <input type="hidden" name="return_to" value="/blithchron">
+      <button type="submit" class="btn btn-secondary">Check bounces</button>
+    </form>
+    {% endif %}
+  </div>
+</header>
+
+{% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+{% if flash_err %}<div class="alert alert-err">{{ flash_err }}</div>{% endif %}
+
+<section class="card" id="message-queue">
+  <h2>One-click for the {{ no_email_count }} national leads without email</h2>
+  <p class="muted" style="margin-top:-0.25rem">WhatsApp opens with a ready pitch (needs a mobile number). Everyone else gets <strong>LinkedIn search + Copy pitch</strong> — click Copy, open LinkedIn, paste InMail/connection note.</p>
+  <div class="outreach-nav" style="margin:0.75rem 0">
+    <div class="outreach-nav-card outreach-nav-summary">
+      <span class="outreach-nav-label">WhatsApp-ready</span>
+      <span class="outreach-nav-count">{{ wa_national|length }}</span>
+    </div>
+    <div class="outreach-nav-card">
+      <span class="outreach-nav-label">LinkedIn / copy</span>
+      <span class="outreach-nav-count">{{ li_national|length }}</span>
+    </div>
+    <div class="outreach-nav-card">
+      <span class="outreach-nav-label">WA queue total (+local)</span>
+      <span class="outreach-nav-count">{{ wa_count }}</span>
+    </div>
+  </div>
+  <p id="wa-status" class="muted"></p>
+  <div class="table-scroll" style="max-height:420px">
+    <table class="data-table mobile-cards">
+      <thead>
+        <tr><th>#</th><th>Brand</th><th>Package</th><th>Phone</th><th>Message</th></tr>
+      </thead>
+      <tbody>
+        {% for row in no_email_rows %}
+        <tr>
+          <td data-label="#">{{ loop.index }}</td>
+          <td data-label="Brand"><strong>{{ row.brand.name }}</strong><div class="muted" style="font-size:12px">{{ row.brand.city }} · {{ row.confidence }}</div></td>
+          <td data-label="Package" style="font-size:12px">{{ row.package }}</td>
+          <td data-label="Phone" style="font-size:12px">{{ row.brand.contact_phone or '—' }}</td>
+          <td class="msg-actions" data-label="Message">
+            {% if row.channels.wa_url %}
+            <a class="btn btn-sm" href="{{ row.channels.wa_url }}" target="_blank" rel="noopener">WhatsApp</a>
+            {% endif %}
+            <a class="btn btn-sm btn-secondary" href="{{ row.channels.linkedin_people }}" target="_blank" rel="noopener">LinkedIn</a>
+            <button type="button" class="btn btn-sm btn-secondary copy-pitch" data-pitch="{{ row.channels.pitch|e }}">Copy pitch</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card" id="local-brands">
+  <h2>Ahmedabad / Gandhinagar local brands ({{ local_total }})</h2>
+  <p class="muted" style="margin-top:-0.25rem">Shiv Shakti Chavana-style locals, bakeries, farsan, cafes, gyms, dealers — many with <strong>WhatsApp-ready phones</strong>. Aim: fast stall / sampling closes near IITGN.</p>
+  <div class="outreach-nav" style="margin:0.75rem 0">
+    <div class="outreach-nav-card outreach-nav-summary">
+      <span class="outreach-nav-label">Local total</span>
+      <span class="outreach-nav-count">{{ local_total }}</span>
+    </div>
+    <div class="outreach-nav-card">
+      <span class="outreach-nav-label">Local WhatsApp</span>
+      <span class="outreach-nav-count">{{ wa_local|length }}</span>
+    </div>
+    <div class="outreach-nav-card">
+      <span class="outreach-nav-label">Local email</span>
+      <span class="outreach-nav-count">{{ email_local }}</span>
+    </div>
+  </div>
+  <div class="table-scroll" style="max-height:520px">
+    <table class="data-table mobile-cards">
+      <thead>
+        <tr><th>#</th><th>Brand</th><th>City</th><th>Package</th><th>Ask</th><th>Contact</th><th>Reach</th></tr>
+      </thead>
+      <tbody>
+        {% for row in local_rows %}
+        <tr>
+          <td data-label="#">{{ loop.index }}</td>
+          <td data-label="Brand"><strong>{{ row.brand.name }}</strong><div class="muted" style="font-size:12px">{{ row.brand.category }}</div></td>
+          <td data-label="City">{{ row.brand.city }}</td>
+          <td data-label="Package" style="font-size:12px">{{ row.package }}</td>
+          <td data-label="Ask" style="font-size:12px">{{ row.ask }}</td>
+          <td data-label="Contact" style="font-size:12px">
+            {% if row.brand.contact_email %}<a href="mailto:{{ row.brand.contact_email }}">{{ row.brand.contact_email }}</a><br>{% endif %}
+            {{ row.brand.contact_phone or '—' }}
+          </td>
+          <td class="msg-actions" data-label="Reach">
+            {% if row.channels.wa_url %}
+            <a class="btn btn-sm" href="{{ row.channels.wa_url }}" target="_blank" rel="noopener">WhatsApp</a>
+            {% endif %}
+            {% if row.brand.contact_email and row.outreach_id and row.outreach_status != 'sent' %}
+            <form method="post" action="/outreach/{{ row.outreach_id }}/send" style="display:inline" onsubmit="return confirm('Send email?');">
+              <input type="hidden" name="return_to" value="/blithchron">
+              <button type="submit" class="btn btn-sm btn-secondary">Email</button>
+            </form>
+            {% endif %}
+            <a class="btn btn-sm btn-secondary" href="{{ row.channels.linkedin_people }}" target="_blank" rel="noopener">LI</a>
+            <button type="button" class="btn btn-sm btn-secondary copy-pitch" data-pitch="{{ row.channels.pitch|e }}">Copy</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>How to convince (keep open on call)</h2>
+  <ul class="bullet-tight">
+    <li><strong>Exclusivity</strong> — Official Energy / Beverage / Hydration / Banking = one brand only.</li>
+    <li><strong>Local angle</strong> — “IIT Gandhinagar is in your backyard — 22k students for 4 days.”</li>
+    <li><strong>Brochure proof</strong> — CBI, Krispy, Coke, Monster, Maggi, Souled Store.</li>
+    <li><strong>Right tier</strong> — Stall / Event / Gold first for locals; Title only for banks/Amul.</li>
+    <li><strong>Fest team</strong> — Aarav 9326144314 · Jay 9137727484 · Parishi 9653651177</li>
+  </ul>
+</section>
+
+<section class="card" style="padding:0">
+  <h2 style="padding:1rem 1rem 0">National pack ({{ total }})</h2>
+  <div class="table-scroll">
+  <table class="data-table mobile-cards">
+    <thead>
+      <tr>
+        <th>#</th><th>Brand</th><th>Package</th><th>Ask</th><th>Email / Phone</th><th>Conf</th><th>Reach</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr class="{% if row.outreach_status == 'sent' %}row-sent{% endif %}">
+        <td data-label="#">{{ loop.index }}</td>
+        <td data-label="Brand"><strong>{{ row.brand.name }}</strong><div class="muted" style="font-size:12px">{{ row.brand.category }} · {{ row.brand.city }}</div></td>
+        <td data-label="Package" style="font-size:12px">{{ row.package }}</td>
+        <td data-label="Ask" style="font-size:12px">{{ row.ask }}</td>
+        <td data-label="Contact" style="font-size:12px">
+          {% if row.brand.contact_email %}<a href="mailto:{{ row.brand.contact_email }}">{{ row.brand.contact_email }}</a><br>{% endif %}
+          {{ row.brand.contact_phone or '' }}
+        </td>
+        <td data-label="Conf"><span class="pill pill-{{ row.confidence_tone }}">{{ row.confidence }}</span></td>
+        <td class="msg-actions" data-label="Reach">
+          {% if row.brand.contact_email and row.outreach_id and row.outreach_status != 'sent' %}
+          <form method="post" action="/outreach/{{ row.outreach_id }}/send" style="display:inline" onsubmit="return confirm('Send?');">
+            <input type="hidden" name="return_to" value="/blithchron">
+            <button type="submit" class="btn btn-sm">Email</button>
+          </form>
+          {% elif row.outreach_status == 'sent' %}
+          <span class="muted">Sent</span>
+          {% endif %}
+          {% if row.channels.wa_url %}<a class="btn btn-sm btn-secondary" href="{{ row.channels.wa_url }}" target="_blank" rel="noopener">WA</a>{% endif %}
+          <a class="btn btn-sm btn-secondary" href="{{ row.channels.linkedin_people }}" target="_blank" rel="noopener">LI</a>
+          <button type="button" class="btn btn-sm btn-secondary copy-pitch" data-pitch="{{ row.channels.pitch|e }}">Copy</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<p class="muted" style="margin-top:1rem">Excel: <code>exports/Blithchron27_Leads_100plus_Scripts.xlsx</code> — sheets include <code>Message_NoEmail</code> + <code>Local_AMD_GN</code> with clickable WhatsApp URLs.</p>
+
+<script type="application/json" id="wa-queue-data">{{ wa_queue|tojson }}</script>
+<script>
+(function () {
+  const queue = JSON.parse(document.getElementById("wa-queue-data").textContent || "[]");
+  let idx = 0;
+  const status = document.getElementById("wa-status");
+  const startBtn = document.getElementById("wa-start");
+  const copyAll = document.getElementById("wa-copy-all");
+
+  function openNext() {
+    if (!queue.length) return;
+    if (idx >= queue.length) {
+      if (status) status.textContent = "WhatsApp queue finished (" + queue.length + "). Refresh if you need to restart.";
+      idx = 0;
+      return;
+    }
+    const item = queue[idx];
+    if (status) status.textContent = "Opening " + (idx + 1) + "/" + queue.length + ": " + item.name;
+    window.open(item.url, "_blank", "noopener");
+    idx += 1;
+  }
+
+  if (startBtn) {
+    startBtn.addEventListener("click", function () {
+      openNext();
+      startBtn.textContent = "WhatsApp next (" + Math.max(queue.length - idx, 0) + " left)";
+    });
+  }
+
+  if (copyAll) {
+    copyAll.addEventListener("click", async function () {
+      const text = queue.map(function (q, i) {
+        try {
+          const u = new URL(q.url);
+          return (i + 1) + ". " + q.name + "\n" + decodeURIComponent(u.searchParams.get("text") || "") + "\n";
+        } catch (e) {
+          return (i + 1) + ". " + q.name;
+        }
+      }).join("\n---\n");
+      try {
+        await navigator.clipboard.writeText(text);
+        if (status) status.textContent = "Copied " + queue.length + " WhatsApp pitches to clipboard.";
+      } catch (e) {
+        if (status) status.textContent = "Clipboard blocked — use Copy pitch per row.";
+      }
+    });
+  }
+
+  document.querySelectorAll(".copy-pitch").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      const pitch = btn.getAttribute("data-pitch") || "";
+      try {
+        await navigator.clipboard.writeText(pitch);
+        btn.textContent = "Copied";
+        setTimeout(function () { btn.textContent = "Copy"; }, 1200);
+      } catch (e) {
+        btn.textContent = "Fail";
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

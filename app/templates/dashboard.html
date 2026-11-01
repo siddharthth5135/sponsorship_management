@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — SponsorDesk{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>Dashboard</h1>
+  <p>Agents scan, explain, and queue work — you verify and close.</p>
+</header>
+
+<div class="grid stats">
+  <div class="stat highlight"><div class="stat-label">Actionable events</div><span>{{ stats.events }}</span></div>
+  <div class="stat"><div class="stat-label">Chase now</div><span>{{ stats.events_chase or 0 }}</span></div>
+  <div class="stat"><div class="stat-label">Brands</div><span>{{ stats.brands }}</span></div>
+  <div class="stat warn"><div class="stat-label">Your tasks</div><span>{{ stats.founder_tasks }}</span></div>
+  <div class="stat"><div class="stat-label">Outreach</div><span>{{ stats.outreach_drafts }}</span></div>
+  <div class="stat"><div class="stat-label">Matches</div><span>{{ stats.matches_pending }}</span></div>
+  <div class="stat"><div class="stat-label">Open deals</div><span>{{ stats.deals_open }}</span></div>
+</div>
+
+<section class="card">
+  <h2>Web candidates to verify</h2>
+  <p class="muted" style="margin:-0.5rem 0 1rem;font-size:13px">Event Scout now auto-imports Allevents + college-circuit hits into Events. Leftover web candidates stay here — promote or dismiss.</p>
+  {% if discoveries %}
+  <div class="entity-list" style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+    {% for d in discoveries[:24] %}
+    <article class="entity-card">
+      <div class="entity-main">
+        <div class="entity-head">
+          <h3>{{ d.title|truncate_title(80) }}</h3>
+          <span class="pill pill-neutral">{{ d.lead_type|capitalize }}</span>
+        </div>
+        {% if d.snippet %}<p class="desc-sub">{{ d.snippet|truncate_title(220) }}</p>{% endif %}
+        <p class="desc-sub"><strong>Why flagged:</strong> {{ d.why_chosen }}</p>
+      </div>
+      <div class="entity-side">
+        {% if d.source_url %}
+        <a class="btn btn-sm btn-secondary" href="{{ d.source_url }}" target="_blank" rel="noopener">Open source</a>
+        {% endif %}
+        {% if d.lead_type == 'event' %}
+        <form method="post" action="/discoveries/{{ d.id }}/promote-event">
+          <button type="submit" class="btn btn-sm">Add as event</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/discoveries/{{ d.id }}/dismiss">
+          <button type="submit" class="btn btn-sm btn-ghost">Dismiss</button>
+        </form>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No new candidates. The scout runs every 45 minutes while the agent daemon is on.</p>
+  {% endif %}
+</section>
+
+<section class="card card-flush">
+  <div class="list-toolbar">
+    <h2 class="list-title">Top matches</h2>
+    <a class="btn btn-sm btn-secondary" href="/matches">View all</a>
+  </div>
+  {% if top_matches %}
+  <div class="entity-list">
+    {% for m in top_matches %}
+    <article class="entity-card">
+      <div class="entity-main">
+        <h3 style="margin:0 0 .35rem;font-size:1rem">{{ m.brand_name }} → {{ m.event_name|truncate_title(40) }}</h3>
+        <p class="entity-meta" style="margin:0;color:var(--text)">{{ m.match_reason }}</p>
+      </div>
+      <div class="entity-side"><span class="pill pill-info">{{ '%.0f'|format(m.fit_score) }}%</span></div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="page-header-row" style="margin-bottom:1rem">
+    <h2 style="margin:0">Your tasks</h2>
+    <a class="btn btn-sm" href="/tasks">Open all</a>
+  </div>
+  {% if tasks %}
+  <ul class="task-list">
+    {% for t in tasks[:5] %}
+    <li><strong>{{ t.title }}</strong><p>{{ t.description }}</p></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No pending tasks.</p>
+  {% endif %}
+</section>
+{% endblock %}

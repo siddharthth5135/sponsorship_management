@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>{% block title %}SponsorDesk{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="app-sidebar">
+      <div class="logo">
+        <div class="logo-mark">SD</div>
+        <div>
+          <div class="logo-text">SponsorDesk</div>
+          <div class="logo-sub">Private brokerage</div>
+        </div>
+        <button type="button" class="sidebar-close" id="menu-close" aria-label="Close menu">✕</button>
+      </div>
+      <nav class="nav">
+        <div class="nav-section">Workspace</div>
+        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+        <a href="/events" class="{% if request.url.path == '/events' %}active{% endif %}">Events</a>
+        <a href="/blithchron" class="{% if request.url.path == '/blithchron' %}active{% endif %}">Blithchron '27</a>
+        <a href="/brands" class="{% if request.url.path == '/brands' %}active{% endif %}">Brands</a>
+        <a href="/matches" class="{% if request.url.path == '/matches' %}active{% endif %}">Matches</a>
+        <div class="nav-group {% if request.url.path.startswith('/outreach') %}open{% endif %}">
+          <div class="nav-group-label">Outreach</div>
+          <a href="/outreach/events" class="nav-sub {% if request.url.path == '/outreach/events' %}active{% endif %}">Event outreach</a>
+          <a href="/outreach/brands" class="nav-sub {% if request.url.path == '/outreach/brands' %}active{% endif %}">Brand outreach</a>
+        </div>
+        <a href="/deals" class="{% if request.url.path == '/deals' %}active{% endif %}">Deals</a>
+        <div class="nav-section">You</div>
+        <a href="/tasks" class="{% if request.url.path == '/tasks' %}active{% endif %}">Your tasks</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="live-badge">Production</div>
+        Real CRM — no demo data
+      </div>
+    </aside>
+    <header class="mobile-top">
+      <button type="button" class="mobile-menu-btn" id="menu-toggle" aria-label="Open menu">☰</button>
+      <div class="mobile-brand">SponsorDesk</div>
+    </header>
+    <div class="mobile-nav-scrim" id="nav-scrim" hidden></div>
+    <main class="main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

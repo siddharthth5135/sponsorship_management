@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sponsorship Brokerage — Operations Manual</title>
+<style>
+@page { margin: 18mm; }
+body { font-family: "Segoe UI", sans-serif; color: #1a1a1a; max-width: 900px; margin: 0 auto; padding: 24px; line-height: 1.55; }
+h1 { font-size: 28px; border-bottom: 3px solid #2563eb; padding-bottom: 8px; page-break-after: avoid; }
+h2 { font-size: 20px; margin-top: 32px; color: #1e40af; page-break-after: avoid; }
+h3 { font-size: 16px; margin-top: 20px; }
+.slide { page-break-before: always; padding-top: 8px; }
+.slide:first-of-type { page-break-before: avoid; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+th { background: #eff6ff; }
+.box { background: #f8fafc; border-left: 4px solid #2563eb; padding: 12px 16px; margin: 16px 0; }
+.warn { border-left-color: #d97706; background: #fffbeb; }
+.ok { border-left-color: #059669; background: #ecfdf5; }
+ul li { margin-bottom: 6px; }
+.meta { color: #64748b; font-size: 13px; }
+code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+@media print { .no-print { display: none; } }
+</style>
+</head>
+<body>
+
+<p class="meta">Version 1.0 · Sponsorship Brokerage OS · Internal use only</p>
+<button class="no-print" onclick="window.print()">Print / Save as PDF</button>
+
+<div class="slide">
+<h1>Operations Manual</h1>
+<p><strong>What this is:</strong> A private brokerage system + 6-agent team that finds leads and prepares deals. <strong>You</strong> approve outreach, call organizers, host intros, and collect commission.</p>
+<p><strong>What this is NOT:</strong> A public marketplace like InviteMySponsors (no Exact Match wall — avoids Uber/Ola leakage).</p>
+</div>
+
+<div class="slide">
+<h2>Slide 1 — Business model</h2>
+<ul>
+<li>Contract with event organizers: you bring sponsors for open packages.</li>
+<li>Charge <strong>10–20% commission</strong> on each closed sponsorship.</li>
+<li>Start: small events, one city/niche → build rich brand CRM → scale up.</li>
+</ul>
+<div class="box warn"><strong>Leakage rule:</strong> Never show organizers a browsable list of brand names + Invite buttons. You hold contacts; intros are hosted.</div>
+</div>
+
+<div class="slide">
+<h2>Slide 2 — The 6 agents (your team)</h2>
+<table>
+<tr><th>Agent</th><th>Job</th><th>Output</th></tr>
+<tr><td>Event Scout</td><td>Find events early (90–180 days)</td><td>Tasks: sign LOI</td></tr>
+<tr><td>Brand Scout</td><td>Grow private brand CRM</td><td>Tasks: find missing contacts</td></tr>
+<tr><td>Fit Matcher</td><td>Score event ↔ brand fit</td><td>Matches table (private)</td></tr>
+<tr><td>Outreach Writer</td><td>Draft emails/WhatsApp</td><td>Drafts — not sent</td></tr>
+<tr><td>Pipeline Chief</td><td>Daily priority brief</td><td>Founder task list</td></tr>
+<tr><td>Deal Desk</td><td>Commission & payments</td><td>Reminders to collect</td></tr>
+</table>
+<p><strong>Count:</strong> 6 agents + 1 human (you) as closer and approver.</p>
+</div>
+
+<div class="slide">
+<h2>Slide 3 — Software modules (end-to-end)</h2>
+<ol>
+<li><strong>Dashboard</strong> — stats, agent runs, your tasks</li>
+<li><strong>Events</strong> — organizer pipeline, planning stage, LOI</li>
+<li><strong>Brands</strong> — private sponsor CRM</li>
+<li><strong>Matches</strong> — fit scores; approve before intro</li>
+<li><strong>Outreach</strong> — approve drafts, you send</li>
+<li><strong>Deals</strong> — amount + auto commission</li>
+<li><strong>Your tasks</strong> — only work that requires you</li>
+<li><strong>CLI orchestrator</strong> — runs all agents daily</li>
+</ol>
+</div>
+
+<div class="slide">
+<h2>Slide 4 — Install & run (Windows)</h2>
+<pre><code>cd sponsorship-brokerage-os
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m agents.orchestrator --seed-demo
+python -m uvicorn app.main:app --reload</code></pre>
+<p>Open <code>http://127.0.0.1:8000</code></p>
+<p>Daily: <code>python -m agents.orchestrator --daily</code></p>
+</div>
+
+<div class="slide">
+<h2>Slide 5 — YOUR work (agents stop here)</h2>
+<table>
+<tr><th>Step</th><th>You do</th><th>Agents did</th></tr>
+<tr><td>1</td><td>Read Founder tasks on dashboard</td><td>Pipeline Chief brief</td></tr>
+<tr><td>2</td><td>Edit + approve outreach; send from your email</td><td>Outreach Writer draft</td></tr>
+<tr><td>3</td><td>Call organizer; sign LOI</td><td>Event Scout flagged event</td></tr>
+<tr><td>4</td><td>Research brand contact if missing</td><td>Brand Scout task</td></tr>
+<tr><td>5</td><td>Review match; call both sides on hosted intro</td><td>Fit Matcher score</td></tr>
+<tr><td>6</td><td>Negotiate; enter deal in app</td><td>Deal Desk commission calc</td></tr>
+<tr><td>7</td><td>Invoice & collect payment</td><td>Deal Desk reminder</td></tr>
+</table>
+<div class="box ok"><strong>Rule of thumb:</strong> If it involves trust, money, or sending a message — <strong>you</strong> do it.</div>
+</div>
+
+<div class="slide">
+<h2>Slide 6 — Finding events before it’s too late</h2>
+<table>
+<tr><th>Signal</th><th>When</th><th>Action</th></tr>
+<tr><td>College fest planning / “seeking sponsors” posts</td><td>3–6 months before</td><td>Add to Events; LOI call</td></tr>
+<tr><td>Soft social event page, no sponsor logos</td><td>6–12 weeks</td><td>Sell mid tiers</td></tr>
+<tr><td>Poster with all logos filled</td><td>Late</td><td>Skip or stall-only</td></tr>
+</table>
+<p>Event Scout creates tasks for events in <code>planning</code>, <code>seeking_sponsors</code>, <code>packages_open</code> without LOI.</p>
+</div>
+
+<div class="slide">
+<h2>Slide 7 — Finding brands (private CRM)</h2>
+<ul>
+<li>Logos on last year’s event posters → warm leads</li>
+<li>Local D2C, edtech, banks, coaching, gyms</li>
+<li>Mark status: prospect → researching → active_buyer</li>
+<li>Never export full list to organizers</li>
+</ul>
+</div>
+
+<div class="slide">
+<h2>Slide 8 — Demo & testing</h2>
+<ul>
+<li>Demo data: <code>python -m agents.orchestrator --seed-demo</code></li>
+<li>Interactive demo: <code>demo/walkthrough.html</code> (screen-record for video)</li>
+<li>Automated tests: <code>pytest tests/test_e2e.py -v</code></li>
+</ul>
+</div>
+
+<div class="slide">
+<h2>Slide 9 — Roadmap (after first 3 deals)</h2>
+<ul>
+<li>Import real Gujarat/Ahmedabad event calendar</li>
+<li>Optional AI API for better outreach personalization</li>
+<li>WhatsApp template queue (still you approve send)</li>
+<li>Post-event report PDF for brands (retention / anti-leakage)</li>
+</ul>
+</div>
+
+<div class="slide">
+<h2>Slide 10 — Summary</h2>
+<p><strong>Built for you:</strong> Lead finding structure, match scoring, outreach drafts, deal commission tracking, and a clear daily task list.</p>
+<p><strong>Your edge:</strong> Early events + LOI + hosted intros + payment path — not a public match feed.</p>
+<p><strong>Folder:</strong> <code>sponsorship-brokerage-os</code> in your project root.</p>
+</div>
+
+</body>
+</html>

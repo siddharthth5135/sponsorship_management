@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brokerage OS — Demo Walkthrough</title>
+<style>
+body { font-family: system-ui, sans-serif; background: #0f1419; color: #e7ecf3; margin: 0; }
+.bar { padding: 1rem 1.5rem; background: #1a2332; display: flex; justify-content: space-between; align-items: center; }
+.step { max-width: 720px; margin: 3rem auto; padding: 0 1.5rem; min-height: 60vh; }
+h1 { font-size: 1.75rem; }
+p { color: #8b9cb3; line-height: 1.6; }
+.btn { background: #3d8bfd; color: #fff; border: none; padding: 0.75rem 1.25rem; border-radius: 8px; cursor: pointer; font-size: 1rem; margin-top: 1.5rem; }
+.progress { height: 4px; background: #2a3548; }
+.progress i { display: block; height: 100%; background: #3d8bfd; width: 0%; transition: width 0.3s; }
+.mock { background: #1a2332; border: 1px solid #2a3548; border-radius: 12px; padding: 1.25rem; margin-top: 1.5rem; font-size: 0.9rem; }
+.tag { display: inline-block; background: #243044; padding: 0.2rem 0.5rem; border-radius: 4px; margin-right: 0.5rem; font-size: 0.75rem; }
+</style>
+</head>
+<body>
+<div class="progress"><i id="prog"></i></div>
+<div class="bar"><span>Sponsorship Brokerage OS — Demo</span><span id="counter">1 / 8</span></div>
+<div class="step" id="content"></div>
+<script>
+const steps = [
+  { t: "What we built", b: "A private brokerage app + 6 agents. They find and prepare leads; you approve outreach, call organizers, host intros, and close deals.", m: "Not a public InviteMySponsors clone — no leakage wall." },
+  { t: "Step 1 — Run agents", b: "Every morning: python -m agents.orchestrator --daily", m: "Event Scout · Brand Scout · Fit Matcher · Outreach Writer · Pipeline Chief · Deal Desk" },
+  { t: "Step 2 — Dashboard", b: "Open http://127.0.0.1:8000 — see events, brands, drafts, and YOUR task count.", m: "Founder tasks = your to-do list for the day" },
+  { t: "Step 3 — Events & LOI", b: "Agents flag unsigned events. You call the organizer and sign LOI: we sell open packages for 10–15% success fee.", m: "Catch events 90+ days before date" },
+  { t: "Step 4 — Private matches", b: "Fit Matcher scores city + category + budget. You review — organizer never sees full brand database.", m: "Approve match → then schedule intro call you host" },
+  { t: "Step 5 — Outreach", b: "Outreach Writer drafts email. You edit, approve in app, send from YOUR Gmail/WhatsApp.", m: "Agents never auto-send (trust + deliverability)" },
+  { t: "Step 6 — Close deal", b: "Enter deal amount in Deals tab. Commission calculated automatically. Deal Desk reminds you to collect payment.", m: "Example: ₹1,00,000 deal → ₹15,000 at 15%" },
+  { t: "Your 15-minute daily routine", b: "1) Run agents 2) Top 3 founder tasks 3) Approve/send 1 outreach 4) One LOI or intro call", m: "Record demo: Win+G while clicking through live app after --seed-demo" }
+];
+let i = 0;
+function render() {
+  const s = steps[i];
+  document.getElementById("content").innerHTML = `<h1>${s.t}</h1><p>${s.b}</p><div class="mock">${s.m}</div><button class="btn" onclick="next()">${i < steps.length-1 ? "Next" : "Restart"}</button>`;
+  document.getElementById("counter").textContent = (i+1) + " / " + steps.length;
+  document.getElementById("prog").style.width = ((i+1)/steps.length*100)+"%";
+}
+function next() { i = (i+1) % steps.length; render(); }
+render();
+</script>
+</body>
+</html>

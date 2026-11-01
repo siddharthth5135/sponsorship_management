@@ -1,0 +1,57 @@
+{
+  "team_name": "Sponsorship Brokerage Agent Team",
+  "model": "private_brokerage_not_open_marketplace",
+  "human_in_loop": "Founder approves all outbound messages and hosts all intros",
+  "agents": [
+    {
+      "id": "event_scout",
+      "name": "Event Scout",
+      "mission": "Find events 90-180 days before date that still need sponsors",
+      "outputs": ["events table rows", "founder task: call organizer for LOI"],
+      "never_does": ["Publish event publicly", "Share organizer contact with brands"]
+    },
+    {
+      "id": "brand_scout",
+      "name": "Brand Scout",
+      "mission": "Build private brand CRM from past sponsors, local D2C, LinkedIn signals",
+      "outputs": ["brands table rows", "founder task: verify contact / warm intro"],
+      "never_does": ["Expose brand list to organizers", "Auto-send spam"]
+    },
+    {
+      "id": "fit_matcher",
+      "name": "Fit Matcher",
+      "mission": "Score event-brand fit by city, category, budget, timing",
+      "outputs": ["matches table", "ranked shortlist for founder only"],
+      "never_does": ["Show Exact Match wall to either side"]
+    },
+    {
+      "id": "outreach_writer",
+      "name": "Outreach Writer",
+      "mission": "Draft personalized emails/WhatsApp for organizers and brands",
+      "outputs": ["outreach drafts in status draft"],
+      "never_does": ["Send without founder_approved=1"]
+    },
+    {
+      "id": "pipeline_chief",
+      "name": "Pipeline Chief",
+      "mission": "Daily brief: what to close today, leakage risks, stale deals",
+      "outputs": ["founder_tasks", "agent_runs summary"],
+      "never_does": ["Close deals or sign contracts"]
+    },
+    {
+      "id": "deal_desk",
+      "name": "Deal Desk",
+      "mission": "Commission math, deal checklists, invoice reminders",
+      "outputs": ["deals rows", "founder task: collect payment"],
+      "never_does": ["Negotiate price without founder"]
+    }
+  ],
+  "daily_sequence": [
+    "event_scout",
+    "brand_scout",
+    "fit_matcher",
+    "outreach_writer",
+    "pipeline_chief",
+    "deal_desk"
+  ]
+}

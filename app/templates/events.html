@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Events — SponsorDesk{% endblock %}
+{% block content %}
+<header class="page-header page-header-row">
+  <div>
+    <h1>Events</h1>
+    <p>Only inventory where a local broker can win: open sponsor windows, reachable organizers, mid-market size. Celebrity tours and directory pages are scored out.</p>
+  </div>
+  <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+    <form method="post" action="/events/rescore">
+      <button type="submit" class="btn btn-secondary">Rescore opportunity</button>
+    </form>
+    <form method="post" action="/agents/run-event-scout">
+      <button type="submit" class="btn btn-secondary">Run Event Scout hard</button>
+    </form>
+    <button type="button" class="btn" data-toggle="#add-event-panel" aria-expanded="false">+ Add event</button>
+  </div>
+</header>
+{% if request.query_params.get('ok') %}<div class="alert alert-ok">{{ request.query_params.get('ok') }}</div>{% endif %}
+
+{% set c = counts if counts is defined else {'chase': 0, 'research': 0, 'skip': 0} %}
+{% set view = show if show is defined else 'actionable' %}
+<nav class="outreach-nav" style="margin-bottom:1rem">
+  <a class="outreach-nav-card {% if view == 'actionable' %}outreach-nav-summary{% endif %}" href="/events?show=actionable" style="text-decoration:none;color:inherit">
+    <span class="outreach-nav-label">Actionable</span>
+    <span class="outreach-nav-count">{{ c.chase + c.research }}</span>
+    <span class="muted">chase + research</span>
+  </a>
+  <a class="outreach-nav-card" href="/events?show=actionable" style="text-decoration:none;color:inherit">
+    <span class="outreach-nav-label">Chase now</span>
+    <span class="outreach-nav-count" style="color:var(--ok)">{{ c.chase }}</span>
+    <span class="muted">open window + reachable</span>
+  </a>
+  <a class="outreach-nav-card" href="/events?show=skip" style="text-decoration:none;color:inherit">
+    <span class="outreach-nav-label">Skipped</span>
+    <span class="outreach-nav-count">{{ c.skip }}</span>
+    <span class="muted">Diljit-scale / directories</span>
+  </a>
+</nav>
+
+<section id="add-event-panel" class="card card-form collapsible">
+  <h2>Add event</h2>
+  <form method="post" action="/events" class="form form-grid">
+    <label>Event name<input name="name" required placeholder="Amalthea '26 — IIT Gandhinagar Technical Summit"></label>
+    <label>City<input name="city" required placeholder="Ahmedabad"></label>
+    <label>Category
+      <select name="category" required>
+        {% for c in CATEGORIES %}<option>{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Planning stage
+      <select name="planning_stage">
+        <option value="seeking_sponsors">Seeking sponsors</option>
+        <option value="planning">Planning</option>
+        <option value="packages_open">Packages open</option>
+        <option value="advertised_locked">Advertised (limited slots)</option>
+      </select>
+    </label>
+    <label>Date (approximate is fine)<input name="event_date" type="date"></label>
+    <label>Date as shown to people<input name="date_label" placeholder="Expected mid-January 2027"></label>
+    <label class="span-2">What is the event planning?<textarea name="description" placeholder="Format, highlights, past sponsors…"></textarea></label>
+    <label>Audience<input name="audience" placeholder="engineering students from across India"></label>
+    <label>Expected footfall<input name="footfall_estimate" type="number" min="0" value="0"></label>
+    <label>Contact name / team<input name="organizer_name"></label>
+    <label>Contact role / other contacts<input name="contact_role" placeholder="Sponsorship coordinator"></label>
+    <label>Email<input name="organizer_email" type="email"></label>
+    <label>Phone<input name="organizer_phone" placeholder="+91 …"></label>
+    <label>Website<input name="website" type="url"></label>
+    <label>LinkedIn (page or person)<input name="linkedin_url" type="url" placeholder="https://www.linkedin.com/…"></label>
+    <label class="span-2">Source link (where you found it)<input name="source_url" type="url"></label>
+    <label class="span-2">Notes<textarea name="notes" placeholder="Open tiers, title sponsor status…"></textarea></label>
+    <div class="span-2 form-actions"><button type="submit">Save event</button></div>
+  </form>
+</section>
+
+<section class="card card-flush">
+  <div class="list-toolbar">
+    <div>
+      <h2 class="list-title">Pipeline <span class="count-badge">{{ events|length }}</span></h2>
+      <p class="list-sub">Sorted by opportunity score — chase first. Skipped celebrity / directory noise stays hidden unless you open Skipped.</p>
+    </div>
+    <input type="search" class="search-input" placeholder="Search events…" data-list-search="#event-list" aria-label="Search events">
+  </div>
+
+  {% if events %}
+  <div id="event-list" class="entity-list">
+    {% for e in events %}
+    {% set tier = e.opportunity_tier or 'research' %}
+    <article class="entity-card" data-searchable="{{ e.name }} {{ e.city }} {{ e.category }} {{ e.description }} {{ e.opportunity_reason }}" data-quality="{{ tier }}">
+      <div class="entity-main">
+        <div class="entity-head">
+          <h3>{{ e.name }}</h3>
+          <span class="pill pill-{{ 'ok' if tier == 'chase' else ('warn' if tier == 'research' else 'err') }}">
+            {% if tier == 'chase' %}Chase{% elif tier == 'research' %}Research{% else %}Skip{% endif %}
+            {% if e.opportunity_score %} · {{ '%.0f'|format(e.opportunity_score) }}{% endif %}
+          </span>
+          <span class="pill pill-{{ ui.stage_tone(e.planning_stage) }}">{{ e.planning_stage|stage_label }}</span>
+        </div>
+        <div class="entity-meta">
+          <span>{{ e.category }}</span>
+          <span class="dot">·</span><span>{{ e.city }}</span>
+          <span class="dot">·</span><span>{{ e.date_label or e.event_date or 'Date TBC' }}</span>
+          {% if e.footfall_estimate %}<span class="dot">·</span><span>{{ '{:,}'.format(e.footfall_estimate) }}+ attendees</span>{% endif %}
+        </div>
+        {% if e.description %}<p class="desc">{{ e.description }}</p>{% endif %}
+        {% if e.audience %}<p class="desc-sub"><strong>Audience:</strong> {{ e.audience }}</p>{% endif %}
+
+        <div class="contact-block">
+          <div class="contact-title">How to reach them</div>
+          <div class="contact-row"><span>Who</span><strong>{{ e.organizer_name or '—' }}</strong></div>
+          {% if e.contact_role %}<div class="contact-row"><span>Notes</span>{{ e.contact_role }}</div>{% endif %}
+          {% set channels = ui.reach_channels(e.organizer_email, e.organizer_phone, e.linkedin_url, e.website, e.source_url) %}
+          {% for ch in channels %}
+          <div class="contact-row"><span>{{ ch.label }}</span><a href="{{ ch.href }}" {% if ch.kind not in ['email','phone'] %}target="_blank" rel="noopener"{% endif %}>{{ ch.value }}</a></div>
+          {% else %}
+          <div class="contact-row"><span>Reach</span><em class="muted">Add email, LinkedIn or website</em></div>
+          {% endfor %}
+        </div>
+
+        {% if e.opportunity_reason %}
+        <p class="desc-sub"><strong>Why this score:</strong> {{ e.opportunity_reason }}</p>
+        {% endif %}
+        <details class="why-details">
+          <summary>{{ (e.discovery_reason or e.notes or 'Manual entry')|why_summary }}</summary>
+          <p>{{ e.discovery_reason or 'Added manually.' }}</p>
+          {% if e.source_url %}<a class="link-source" href="{{ e.source_url }}" target="_blank" rel="noopener">View source</a>{% endif %}
+        </details>
+      </div>
+      <div class="entity-side">
+        {% if e.loi_signed %}
+        <span class="pill pill-ok">LOI signed</span>
+        {% else %}
+        <span class="pill pill-warn">LOI pending</span>
+        {% if tier != 'skip' %}
+        <form method="post" action="/events/{{ e.id }}/loi">
+          <button type="submit" class="btn btn-sm">Mark LOI signed</button>
+        </form>
+        {% endif %}
+        {% endif %}
+        <form method="post" action="/events/{{ e.id }}/delete" onsubmit="return confirm('Remove this event from the pipeline?');">
+          <button type="submit" class="btn btn-sm btn-ghost">Remove</button>
+        </form>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">E</div>
+    <p>No events yet. Run <code>python scripts/load_verified_leads.py</code> or add one above.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

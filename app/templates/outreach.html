@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ meta.title }} — SponsorDesk{% endblock %}
+{% block content %}
+<header class="page-header page-header-row">
+  <div>
+    <h1>{{ meta.title }}</h1>
+    <p>{{ meta.hint }} Unsent stay on top; sent sink below. Use Check bounces to pull Gmail delivery failures back into this queue.</p>
+  </div>
+  <div class="outreach-header-actions">
+    {% if remaining %}
+      {% if sendable_count %}
+      <form method="post" action="/outreach/send-all" onsubmit="return confirm('Send all {{ sendable_count }} emails with addresses now from {{ sender.email }}?\n\nDrafts without an email address will be skipped.');">
+        <input type="hidden" name="target_type" value="{{ target_type }}">
+        <button type="submit" class="btn">Send All Automatically ({{ sendable_count }})</button>
+      </form>
+      {% else %}
+      <button type="button" class="btn btn-secondary" disabled title="Remaining drafts have no email — use LinkedIn / website">Send All Automatically (0)</button>
+      {% endif %}
+    {% endif %}
+    {% if gmail_ready %}
+    <form method="post" action="/outreach/check-bounces">
+      <input type="hidden" name="return_to" value="{{ meta.page }}">
+      <button type="submit" class="btn btn-secondary" title="Scan Gmail for Mail Delivery Subsystem / Address not found messages">Check bounces</button>
+    </form>
+    {% endif %}
+    <a class="btn btn-secondary" href="{{ meta.other_href }}">Open {{ meta.other_label|lower }}</a>
+  </div>
+</header>
+
+{% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+{% if flash_err %}<div class="alert alert-err">{{ flash_err }}</div>{% endif %}
+
+<section class="card">
+  <h2>Gmail auto-send</h2>
+  {% if gmail_ready %}
+  <p class="muted" style="margin-top:-0.35rem">Connected to {{ sender.email }}. “Send automatically” only means Gmail accepted the message — use <strong>Check bounces</strong> so undeliverable addresses (like Address not found) move back to To send. Enable IMAP once: Gmail → Settings → See all settings → Forwarding and POP/IMAP → Enable IMAP.</p>
+  {% else %}
+  <p class="muted" style="margin-top:-0.35rem">One-time setup: Google Account → Security → 2-Step Verification (on) → <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">App passwords</a> → create one for “Mail”, paste below. Also enable IMAP in Gmail settings for bounce checks.</p>
+  {% endif %}
+  <form method="post" action="/outreach/settings" class="form form-grid" style="margin-top:0.75rem">
+    <input type="hidden" name="return_to" value="{{ meta.page }}">
+    <label class="span-2">Gmail App Password for {{ sender.email }}
+      <input name="gmail_app_password" type="password" autocomplete="off" placeholder="{% if gmail_ready %}•••••••••••••••• — paste a new one to replace{% else %}xxxx xxxx xxxx xxxx{% endif %}">
+    </label>
+    <div class="span-2 form-actions">
+      <button type="submit">{% if gmail_ready %}Update App Password{% else %}Save App Password{% endif %}</button>
+    </div>
+  </form>
+</section>
+
+<div class="outreach-nav">
+  <div class="outreach-nav-card outreach-nav-summary">
+    <span class="outreach-nav-label">Remaining</span>
+    <span class="outreach-nav-count">{{ remaining }}</span>
+    <span class="muted">still to send on this page</span>
+  </div>
+  <div class="outreach-nav-card">
+    <span class="outreach-nav-label">Already sent</span>
+    <span class="outreach-nav-count" style="color:var(--ok)">{{ sent_count }}</span>
+    <span class="muted">shown below, dimmed</span>
+  </div>
+</div>
+
+{% if total %}
+<section class="outreach-section">
+  {% if pending %}
+  <div class="outreach-queue">
+    {% for item in pending %}
+    {% include "partials/outreach_card.html" %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card empty-sm">
+    <p>Nothing left to send here. Sent drafts are listed below.</p>
+  </div>
+  {% endif %}
+
+  {% if sent %}
+  <details class="sent-drawer" open>
+    <summary>
+      Already sent
+      <span class="count-badge">{{ sent_count }}</span>
+    </summary>
+    <div class="outreach-queue outreach-queue-sent">
+      {% for item in sent %}
+      {% include "partials/outreach_card.html" %}
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+</section>
+{% else %}
+<div class="card empty">
+  <div class="empty-icon">✉</div>
+  <p>No drafts on this page yet. Run the agent team after adding events and brands.</p>
+</div>
+{% endif %}
+{% endblock %}

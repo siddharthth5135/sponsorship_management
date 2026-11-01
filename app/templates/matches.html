@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Matches — SponsorDesk{% endblock %}
+{% block content %}
+<header class="page-header page-header-row">
+  <div>
+    <h1>Matches by brand</h1>
+    <p>Each brand appears once with every event it fits, best fit first. Only your team sees this.</p>
+  </div>
+  <form method="post" action="/matches/run">
+    <button type="submit">Re-score matches</button>
+  </form>
+</header>
+
+{% if groups %}
+<p class="muted" style="margin:-0.5rem 0 1rem">{{ groups|length }} brands · {{ total }} brand–event fits</p>
+{% for g in groups %}
+{% set b = g.brand %}
+<section class="card card-flush brand-group">
+  <header class="brand-group-head">
+    <div>
+      <h2>{{ b.name }} <span class="count-badge">{{ g.events|length }} event{{ 's' if g.events|length != 1 }}</span></h2>
+      <div class="entity-meta">
+        <span>{{ b.category }}</span><span class="dot">·</span><span>{{ b.city }}</span>
+        <span class="dot">·</span><span>Goal: {{ b.goal|capitalize }}</span>
+      </div>
+      {% if b.description %}<p class="desc">{{ b.description }}</p>{% endif %}
+    </div>
+    <div class="brand-contact">
+      <div class="contact-title">Contact</div>
+      {% set channels = ui.reach_channels(b.contact_email, b.contact_phone, b.linkedin_url, b.website, b.source_url) %}
+      {% for ch in channels[:3] %}
+      <a href="{{ ch.href }}" {% if ch.kind not in ['email','phone'] %}target="_blank" rel="noopener"{% endif %}>{{ ch.label }}: {{ ch.value }}</a>
+      {% else %}
+      <em class="muted">No contact channel yet</em>
+      {% endfor %}
+      <a class="btn btn-sm btn-secondary" href="/outreach/brands#brand-{{ b.id }}">View brand email</a>
+    </div>
+  </header>
+  <div class="match-rows">
+    {% for m in g.events %}
+    <div class="match-row">
+      <div class="match-score tier-{{ m.fit_tier }}">{{ '%.0f'|format(m.fit_score) }}<small>%</small></div>
+      <div class="match-body">
+        <div class="match-title">
+          <strong>{{ m.event_name }}</strong>
+          <span class="pill pill-{{ 'ok' if m.fit_tier == 'excellent' else 'info' if m.fit_tier == 'strong' else 'neutral' }}">{{ m.fit_tier|capitalize }}</span>
+          {% if not m.loi_signed %}<span class="pill pill-warn">Organizer not signed yet</span>{% endif %}
+        </div>
+        <div class="entity-meta" style="margin-bottom:.25rem">{{ m.event_category }} · {{ m.event_city }} · {{ m.date_label or m.event_date or 'Date TBC' }}</div>
+        <p class="match-why"><strong>Why:</strong> {{ m.match_reason }}</p>
+      </div>
+      <div class="match-action">
+        {% if not m.organizer_approved %}
+        <form method="post" action="/matches/{{ m.match_id }}/approve">
+          <button type="submit" class="btn btn-sm">Organizer approved</button>
+        </form>
+        {% else %}
+        <span class="pill pill-ok">Approved for intro</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+{% else %}
+<div class="card empty"><p>Add events and brands, then click Re-score matches.</p></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,62 @@
+<article class="card outreach {% if item.is_sent %}outreach-sent{% endif %}{% if item.is_bounced %}outreach-bounced{% endif %}" id="{{ item.target_type }}-{{ item.target_id }}">
+  <header class="outreach-head">
+    <div>
+      <h3>{{ item.target_name or 'Unknown target' }}</h3>
+      <span class="pill pill-{{ 'ok' if item.is_sent else ('err' if item.is_bounced else 'warn') }}">
+        {% if item.is_sent %}Sent{% if item.sent_at %} · {{ item.sent_at[:10] }}{% endif %}{% elif item.is_bounced %}Bounced — fix &amp; resend{% else %}To send{% endif %}
+      </span>
+    </div>
+    <div class="outreach-actions">
+      {% if item.to_email and not item.is_sent %}
+      <form method="post" action="/outreach/{{ item.id }}/send" onsubmit="return confirm('{% if item.is_bounced %}Resend{% else %}Send{% endif %} this email now from {{ sender.email }} to {{ item.to_email }}?');">
+        <button type="submit" class="btn btn-sm">{% if item.is_bounced %}Resend automatically{% else %}Send automatically{% endif %}</button>
+      </form>
+      {% endif %}
+      {% if item.gmail_url and not item.is_sent %}
+      <a class="btn btn-sm btn-secondary" href="{{ item.gmail_url }}" target="_blank" rel="noopener">Open in Gmail</a>
+      {% endif %}
+      <button type="button" class="btn btn-sm btn-secondary" data-copy="#body-{{ item.id }}">Copy text</button>
+      {% if not item.is_sent %}
+      <form method="post" action="/outreach/{{ item.id }}/sent">
+        <button type="submit" class="btn btn-sm btn-ghost">Mark sent</button>
+      </form>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if item.send_error %}<p class="alert alert-err" style="margin-bottom:0.75rem">{{ item.send_error }}</p>{% endif %}
+
+  {% if item.is_bounced %}
+  <form method="post" action="/outreach/{{ item.id }}/fix-email" class="form" style="margin-bottom:0.85rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end">
+    <label style="flex:1;min-width:220px;margin:0">Correct email address
+      <input name="to_email" type="email" required value="{{ item.to_email }}" placeholder="name@company.com">
+    </label>
+    <button type="submit" class="btn btn-sm btn-secondary">Save address</button>
+  </form>
+  {% endif %}
+
+  <dl class="email-meta">
+    <dt>From</dt><dd>{{ item.from_email }}</dd>
+    <dt>To</dt>
+    <dd>
+      {% if item.to_email %}
+      <strong>{{ item.to_email }}</strong> <span class="muted">({{ item.to_name }})</span>
+      {% else %}
+      <span class="pill pill-warn">No public email</span>
+      <span class="muted">Reach them on the platform below{% if item.target_contact_role %} — {{ item.target_contact_role }}{% endif %}</span>
+      {% endif %}
+    </dd>
+    <dt>Reach</dt>
+    <dd class="reach-list">
+      {% for ch in item.reach %}
+      <a class="reach-chip reach-{{ ch.kind }}" href="{{ ch.href }}" {% if ch.kind != 'email' and ch.kind != 'phone' %}target="_blank" rel="noopener"{% endif %}>
+        <span>{{ ch.label }}</span>{{ ch.value }}
+      </a>
+      {% else %}
+      <em class="muted">No contact channel found yet — research and add LinkedIn / website on the Events or Brands page.</em>
+      {% endfor %}
+    </dd>
+    <dt>Subject</dt><dd><strong>{{ item.subject }}</strong></dd>
+  </dl>
+  <pre id="body-{{ item.id }}">{{ item.body }}</pre>
+</article>

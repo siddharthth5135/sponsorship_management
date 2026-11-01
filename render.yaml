@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: sponsordesk
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: ACCESS_PASSWORD
+        sync: false
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    disk:
+      name: sponsordesk-data
+      mountPath: /var/data
+      sizeGB: 1

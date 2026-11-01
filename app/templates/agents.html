@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Closer — SponsorDesk{% endblock %}
+{% block content %}
+<header class="page-header agent-page-header">
+  <div>
+    <h1>Closer</h1>
+    <p>Main job: <strong>convert clients</strong> — write pitches and send emails from your Gmail without asking each time. You watch what happened here. Scouting is secondary.</p>
+  </div>
+  <div class="agent-controls">
+    <form method="post" action="/agents/run-now">
+      <button type="submit" class="btn">Convert now</button>
+    </form>
+    {% if hunter.paused %}
+    <form method="post" action="/agents/resume">
+      <button type="submit" class="btn btn-secondary">Resume</button>
+    </form>
+    {% else %}
+    <form method="post" action="/agents/pause">
+      <button type="submit" class="btn btn-ghost">Pause sends</button>
+    </form>
+    {% endif %}
+  </div>
+</header>
+
+{% if ok %}<p class="flash ok">{{ ok }}</p>{% endif %}
+
+<div class="agent-status-board" id="hunter-status" data-poll="/api/agents/live">
+  <div class="agent-now card">
+    <div class="agent-now-top">
+      <span class="hunter-pulse {% if hunter.enabled and not hunter.paused %}on{% elif hunter.paused %}paused{% else %}off{% endif %}" id="pulse"></span>
+      <div>
+        <div class="agent-now-label" id="phase-label">{{ hunter.phase or 'idle' }}</div>
+        <div class="agent-now-step" id="current-step">{{ hunter.current_step }}</div>
+      </div>
+    </div>
+    <dl class="agent-meta-grid">
+      <div><dt>Cycle</dt><dd id="cycle-n">#{{ hunter.cycle or 0 }}</dd></div>
+      <div><dt>Interval</dt><dd id="interval">{{ hunter.interval_minutes or 15 }} min</dd></div>
+      <div><dt>Last run</dt><dd id="last-cycle">{{ hunter.last_cycle_at or '—' }}</dd></div>
+      <div><dt>Next run</dt><dd id="next-cycle">{{ hunter.next_cycle_at or '—' }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="grid stats agent-finds">
+    <div class="stat highlight"><div class="stat-label">Sent today</div><span id="conv-sent-today">{{ conversion.sent_today or 0 }}</span></div>
+    <div class="stat"><div class="stat-label">Awaiting reply</div><span id="conv-awaiting">{{ conversion.awaiting_reply or 0 }}</span></div>
+    <div class="stat"><div class="stat-label">Queued to send</div><span id="conv-drafts">{{ conversion.drafts_ready or 0 }}</span></div>
+    <div class="stat"><div class="stat-label">Blithchron left</div><span id="conv-blith">{{ conversion.blithchron_unsent_email or 0 }}</span></div>
+    <div class="stat"><div class="stat-label">Sends this session</div><span id="find-sent">{{ finds.sent or 0 }}</span></div>
+    <div class="stat"><div class="stat-label">Follow-ups</div><span id="find-followups">{{ finds.followups or 0 }}</span></div>
+  </div>
+</div>
+
+<section class="card">
+  <h2>Honest limit — agent vs you</h2>
+  <p style="margin:0 0 0.75rem;font-size:14px;color:var(--text-secondary)">The agent <strong>cannot</strong> invent brands that already said “yes.” A signed / verbal yes only exists after a human call or reply. Closest to 100%: <strong>past Blithchron partners</strong> (already said yes once) — start there.</p>
+  <ol class="agent-howto">
+    <li>Open <a href="/blithchron">Blithchron '27</a> → call/WhatsApp the renew list first (Krispy Water, CBI, Coke, Monster, Maggi, Souled Store…).</li>
+    <li>Pitch line: <em>0 fee from brand side — you only pay the fest; our commission is from the event.</em></li>
+    <li>When someone agrees, add a <a href="/deals">Deal</a> (amount + %). That is real conversion in the CRM.</li>
+    <li>On this page: save Gmail App Password under Outreach, tap <strong>Convert now</strong>, watch sends in the feed. Pause anytime.</li>
+    <li>Phone-only leads: agent prepares copy; you 1-tap WhatsApp on Blithchron (no WA gateway yet).</li>
+  </ol>
+</section>
+
+<section class="card">
+  <h2>What the agent is doing</h2>
+  <ol class="agent-howto">
+    <li><strong>Pitch Writer</strong> builds Blithchron + Gujarat emails and WhatsApp copy.</li>
+    <li><strong>Closer</strong> auto-sends emails from your Gmail (up to ~12 per cycle) — no per-message ask.</li>
+    <li>Follow-up after ~3 days with no reply.</li>
+    <li>Every send / fail / bounce is logged below.</li>
+    <li>Light scout every few cycles so the queue does not dry up.</li>
+  </ol>
+  <p class="muted" style="margin:0.75rem 0 0;font-size:13px">Gmail App Password required on Outreach. WhatsApp auto-send needs an SMS/WA gateway.</p>
+</section>
+
+<section class="card">
+  <h2>Roles</h2>
+  <div class="agent-roles">
+    {% for a in team %}
+    <article class="agent-role">
+      <h3>{{ a.name }}</h3>
+      <p>{{ a.does }}</p>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card card-flush">
+  <div class="list-toolbar">
+    <h2 class="list-title">Live activity — pitches &amp; sends</h2>
+    <span class="muted" style="font-size:12px;padding-right:1rem">Auto-refreshes every 4s</span>
+  </div>
+  <ol class="activity-feed" id="activity-feed">
+    {% for row in activity %}
+    <li class="activity-row level-{{ row.level }}">
+      <div class="activity-time">{{ row.created_at }}</div>
+      <div class="activity-body">
+        <span class="pill pill-neutral">{{ row.agent_name }}</span>
+        <strong>{{ row.message }}</strong>
+        {% if row.detail %}<p>{{ row.detail }}</p>{% endif %}
+      </div>
+    </li>
+    {% else %}
+    <li class="activity-row level-info" id="activity-empty">
+      <div class="activity-body"><strong>Waiting for first conversion pass…</strong><p>Starts ~20 seconds after boot. Tap Convert now to force it.</p></div>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+
+<section class="card">
+  <h2>Recent run summaries</h2>
+  {% if recent_runs %}
+  <div class="entity-list" style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+    {% for r in recent_runs %}
+    <article class="entity-card">
+      <div class="entity-main">
+        <div class="entity-head">
+          <h3>{{ r.agent_name }}</h3>
+          <span class="pill pill-info">{{ r.run_type }}</span>
+        </div>
+        <p class="desc-sub">{{ r.summary }}</p>
+      </div>
+      <div class="entity-side"><span class="muted" style="font-size:12px">{{ r.created_at }}</span></div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No completed runs yet.</p>
+  {% endif %}
+</section>
+
+<script>
+(function () {
+  const board = document.getElementById("hunter-status");
+  if (!board) return;
+  const url = board.dataset.poll;
+  const feed = document.getElementById("activity-feed");
+
+  function fmt(ts) {
+    if (!ts || ts === "—") return "—";
+    try {
+      const d = new Date(ts);
+      if (isNaN(d)) return ts;
+      return d.toLocaleString();
+    } catch (e) { return ts; }
+  }
+
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderActivity(rows) {
+    if (!feed || !rows || !rows.length) return;
+    feed.innerHTML = rows.map(function (row) {
+      const detail = row.detail ? "<p>" + escapeHtml(row.detail) + "</p>" : "";
+      return (
+        '<li class="activity-row level-' + escapeHtml(row.level || "info") + '">' +
+        '<div class="activity-time">' + escapeHtml(fmt(row.created_at)) + '</div>' +
+        '<div class="activity-body">' +
+        '<span class="pill pill-neutral">' + escapeHtml(row.agent_name || "") + "</span> " +
+        '<strong>' + escapeHtml(row.message || "") + '</strong>' + detail +
+        '</div></li>'
+      );
+    }).join("");
+  }
+
+  function apply(data) {
+    const h = data.hunter || {};
+    const finds = h.finds_today || {};
+    const conv = data.conversion || {};
+    const pulse = document.getElementById("pulse");
+    if (pulse) {
+      pulse.className = "hunter-pulse " + (h.enabled === false ? "off" : h.paused ? "paused" : "on");
+    }
+    const set = function (id, val) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+    set("phase-label", h.phase || "idle");
+    set("current-step", h.current_step || "—");
+    set("cycle-n", "#" + (h.cycle || 0));
+    set("interval", (h.interval_minutes || 15) + " min");
+    set("last-cycle", fmt(h.last_cycle_at));
+    set("next-cycle", fmt(h.next_cycle_at));
+    set("conv-sent-today", conv.sent_today || 0);
+    set("conv-awaiting", conv.awaiting_reply || 0);
+    set("conv-drafts", conv.drafts_ready || 0);
+    set("conv-blith", conv.blithchron_unsent_email || 0);
+    set("find-sent", finds.sent || 0);
+    set("find-followups", finds.followups || 0);
+    renderActivity(data.activity || []);
+  }
+
+  async function tick() {
+    try {
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) return;
+      apply(await res.json());
+    } catch (e) {}
+  }
+
+  tick();
+  setInterval(tick, 4000);
+})();
+</script>
+{% endblock %}

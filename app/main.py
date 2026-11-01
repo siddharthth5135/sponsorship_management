@@ -149,6 +149,14 @@ def startup() -> None:
     init_db()
     migrate_discovery()
     _seed_blithchron_if_empty()
+    try:
+        from agents.activity import ensure_schema
+        from agents.live_hunter import start_live_hunter
+
+        ensure_schema()
+        start_live_hunter()
+    except Exception:
+        pass
 
 
 def _seed_blithchron_if_empty() -> None:
@@ -886,6 +894,68 @@ def run_event_scout_now():
         f"/events?ok={quote(f'Event Scout finished ({n}). Only chase/research events are shown.')}",
         status_code=303,
     )
+
+
+@app.get("/agents", response_class=HTMLResponse)
+def agents_page(request: Request, ok: str = ""):
+    from agents.activity import status_payload
+
+    payload = status_payload(80)
+    with get_conn() as conn:
+        recent_runs = conn.execute(
+            "SELECT * FROM agent_runs ORDER BY id DESC LIMIT 20"
+        ).fetchall()
+    hunter = payload["hunter"]
+    return templates.TemplateResponse(
+        "agents.html",
+        {
+            "request": request,
+            "ok": ok,
+            "hunter": hunter,
+            "finds": hunter.get("finds_today") or {},
+            "conversion": payload.get("conversion") or {},
+            "activity": payload["activity"],
+            "team": payload["team"],
+            "recent_runs": [dict(r) for r in recent_runs],
+        },
+    )
+
+
+@app.post("/agents/run-now")
+def agents_run_now():
+    from agents.live_hunter import request_run_now
+
+    request_run_now()
+    return RedirectResponse(
+        "/agents?ok=" + quote("Closer waking — pitching and auto-sending now."),
+        status_code=303,
+    )
+
+
+@app.post("/agents/pause")
+def agents_pause():
+    from agents.live_hunter import set_paused
+
+    set_paused(True)
+    return RedirectResponse("/agents?ok=" + quote("Hunter paused."), status_code=303)
+
+
+@app.post("/agents/resume")
+def agents_resume():
+    from agents.live_hunter import set_paused
+
+    set_paused(False)
+    return RedirectResponse("/agents?ok=" + quote("Hunter resumed."), status_code=303)
+
+
+@app.get("/api/agents/live")
+def api_agents_live():
+    from agents.activity import status_payload
+    from agents.live_hunter import is_alive
+
+    payload = status_payload(80)
+    payload["hunter"]["thread_alive"] = is_alive()
+    return payload
 
 
 @app.post("/events/rescore")

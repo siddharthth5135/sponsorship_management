@@ -939,3 +939,143 @@ code { background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px; font-si
   }
   .data-table.mobile-cards td.msg-actions::before { flex-basis: 100%; margin-bottom: 0.25rem; }
 }
+
+/* —— Lead Hunter / Agents live page —— */
+.agent-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.agent-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.agent-status-board { margin-bottom: 1.25rem; }
+.agent-now {
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #fff 55%);
+  border-color: #bfdbfe;
+}
+.agent-now-top {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+.agent-now-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+.agent-now-step {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 0.15rem;
+  line-height: 1.35;
+}
+.hunter-pulse {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-top: 0.35rem;
+  flex-shrink: 0;
+  background: var(--muted);
+  box-shadow: 0 0 0 0 rgba(4, 120, 87, 0.4);
+}
+.hunter-pulse.on {
+  background: var(--ok);
+  animation: hunter-pulse 1.6s ease-out infinite;
+}
+.hunter-pulse.paused { background: var(--warn); }
+.hunter-pulse.off { background: #94a3b8; }
+@keyframes hunter-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(4, 120, 87, 0.45); }
+  70% { box-shadow: 0 0 0 12px rgba(4, 120, 87, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(4, 120, 87, 0); }
+}
+.agent-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+.agent-meta-grid dt {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.agent-meta-grid dd {
+  margin: 0.15rem 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-word;
+}
+.agent-roles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+.agent-role {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+}
+.agent-role h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+.agent-role p { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.agent-howto {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.agent-howto li { margin-bottom: 0.45rem; }
+.agent-howto strong { color: var(--text); }
+.activity-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 560px;
+  overflow: auto;
+}
+.activity-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+.activity-row:last-child { border-bottom: 0; }
+.activity-time {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  padding-top: 0.2rem;
+}
+.activity-body strong { display: inline; font-size: 14px; }
+.activity-body p {
+  margin: 0.35rem 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.activity-row.level-success { background: linear-gradient(90deg, #ecfdf5 0%, transparent 40%); }
+.activity-row.level-warn { background: linear-gradient(90deg, #fffbeb 0%, transparent 40%); }
+.activity-row.level-error { background: linear-gradient(90deg, #fef2f2 0%, transparent 40%); }
+.activity-row.level-step { border-left: 3px solid var(--accent); }
+.flash.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius-sm);
+  margin: -0.5rem 0 1rem;
+  font-size: 14px;
+  font-weight: 500;
+}
+@media (max-width: 760px) {
+  .agent-meta-grid { grid-template-columns: 1fr 1fr; }
+  .activity-row { grid-template-columns: 1fr; gap: 0.25rem; }
+}

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from html import unescape
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -279,7 +280,17 @@ def import_allevents(conn, limit_per_city: int = 30) -> int:
     return added
 
 
-def run_discovery() -> dict:
+ProgressFn = Callable[..., None]
+
+
+def run_discovery(progress: ProgressFn | None = None) -> dict:
+    def emit(message: str, **meta) -> None:
+        if progress:
+            try:
+                progress(message, **meta)
+            except Exception:
+                pass
+
     init_db()
     cfg = load_config()
     max_r = int(cfg.get("max_results_per_query", 20))
@@ -297,24 +308,58 @@ def run_discovery() -> dict:
     ]
 
     with get_conn() as conn:
+        emit("Seeding known Gujarat college circuit events…", agent="Event Scout", phase="scanning")
         stats["college_seeded"] = seed_college_circuit(conn)
         stats["events_added"] += stats["college_seeded"]
+        if stats["college_seeded"]:
+            emit(
+                f"College circuit added {stats['college_seeded']} new event(s)",
+                agent="Event Scout",
+                level="success",
+                phase="scanning",
+            )
 
+        emit("Pulling Allevents Gujarat calendars…", agent="Event Scout", phase="scanning")
         try:
             stats["allevents_added"] = import_allevents(conn)
             stats["events_added"] += stats["allevents_added"]
+            emit(
+                f"Allevents imported {stats['allevents_added']} new event(s)",
+                agent="Event Scout",
+                level="success" if stats["allevents_added"] else "info",
+                phase="scanning",
+            )
         except Exception as exc:
             stats["allevents_error"] = str(exc)[:200]
+            emit(
+                f"Allevents scan failed: {exc}",
+                agent="Event Scout",
+                level="warn",
+                phase="scanning",
+            )
 
-        for lead_type, query in jobs:
+        total_jobs = len(jobs)
+        for idx, (lead_type, query) in enumerate(jobs, start=1):
             stats["queries"] += 1
-            for hit in _search(query, max_r):
+            agent = "Brand Scout" if lead_type == "brand" else "Event Scout"
+            emit(
+                f"Searching web ({idx}/{total_jobs}): {query}",
+                agent=agent,
+                detail=f"Looking for {lead_type} leads",
+                phase="scanning",
+                query=query,
+            )
+            hits = _search(query, max_r)
+            found_here = 0
+            imported_here = 0
+            for hit in hits:
                 if not hit["url"] or is_junk(hit["title"], hit["url"]):
                     stats["rejected"] += 1
                     continue
                 queued = _queue_discovery(conn, lead_type, hit["title"], hit["snippet"], hit["url"], query)
                 if queued:
                     stats["candidates"] += 1
+                    found_here += 1
                 if (
                     auto_promote
                     and lead_type == "event"
@@ -334,12 +379,21 @@ def run_discovery() -> dict:
                     }
                     if upsert_event(conn, item):
                         stats["events_added"] += 1
+                        imported_here += 1
                         if queued or True:
                             conn.execute(
                                 "UPDATE discoveries SET status='imported', imported_table='events' "
                                 "WHERE source_url=? AND status='candidate'",
                                 (hit["url"],),
                             )
+            if found_here or imported_here:
+                emit(
+                    f"Query done — {found_here} candidate(s), {imported_here} event(s) imported",
+                    agent=agent,
+                    level="success",
+                    detail=query,
+                    phase="scanning",
+                )
 
     return stats
 

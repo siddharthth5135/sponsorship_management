@@ -4,6 +4,20 @@
   "human_in_loop": "Founder approves all outbound messages and hosts all intros",
   "agents": [
     {
+      "id": "closer",
+      "name": "Closer",
+      "mission": "Convert clients: auto-pitch and auto-send emails while the app is live; log every send on /agents",
+      "outputs": ["sent outreach", "follow-ups", "agent_activity feed"],
+      "never_does": ["Wait for per-message approval", "Stop unless LIVE_HUNTER=0 or paused"]
+    },
+    {
+      "id": "lead_hunter",
+      "name": "Lead Hunter",
+      "mission": "Secondary scout to refill the conversion queue every few cycles",
+      "outputs": ["events/brands top-up"],
+      "never_does": ["Replace conversion as the main job"]
+    },
+    {
       "id": "event_scout",
       "name": "Event Scout",
       "mission": "Find events 90-180 days before date that still need sponsors",

@@ -1,9 +1,16 @@
 {
   "region": "Gujarat, India",
   "default_city": "Ahmedabad, Gujarat",
-  "interval_minutes": 45,
+  "interval_minutes": 15,
   "max_results_per_query": 20,
   "auto_promote_events": true,
+  "conversion": {
+    "auto_send": true,
+    "max_sends_per_cycle": 12,
+    "followup_days": 3,
+    "send_delay_seconds": 1.2,
+    "scout_every_n_cycles": 3
+  },
   "event_queries": [
     "events Ahmedabad November 2026",
     "events Surat November 2026",

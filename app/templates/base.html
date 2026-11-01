@@ -23,6 +23,7 @@
       <nav class="nav">
         <div class="nav-section">Workspace</div>
         <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+        <a href="/agents" class="{% if request.url.path == '/agents' %}active{% endif %}">Closer</a>
         <a href="/events" class="{% if request.url.path == '/events' %}active{% endif %}">Events</a>
         <a href="/blithchron" class="{% if request.url.path == '/blithchron' %}active{% endif %}">Blithchron '27</a>
         <a href="/brands" class="{% if request.url.path == '/brands' %}active{% endif %}">Brands</a>
@@ -37,8 +38,8 @@
         <a href="/tasks" class="{% if request.url.path == '/tasks' %}active{% endif %}">Your tasks</a>
       </nav>
       <div class="sidebar-footer">
-        <div class="live-badge">Production</div>
-        Real CRM — no demo data
+        <div class="live-badge">Closer auto-send</div>
+        Pitches clients while app runs — /agents
       </div>
     </aside>
     <header class="mobile-top">

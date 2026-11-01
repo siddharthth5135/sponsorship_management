@@ -88,30 +88,12 @@ def _extract_reason(text: str) -> str:
     return "Delivery failed (bounce from Gmail Mail Delivery Subsystem)"
 
 
-def check_bounces(limit: int = 40) -> dict:
-    """Scan recent bounce emails and mark matching outreach rows as bounced."""
-    profile = sender_profile()
-    user = (profile.get("email") or "").strip()
-    password = (profile.get("gmail_app_password") or "").strip().replace(" ", "")
-    if not user or not password:
-        raise MailerError(
-            "Add your Gmail App Password first. Also turn on IMAP: "
-            "Gmail → Settings → See all settings → Forwarding and POP/IMAP → Enable IMAP."
-        )
-
-    try:
-        imap = imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=45)
-        imap.login(user, password)
-    except imaplib.IMAP4.error as exc:
-        raise MailerError(
-            "Could not open Gmail inbox. Enable IMAP in Gmail settings and confirm the App Password. "
-            f"({exc})"
-        ) from exc
-
+def _scan_account_bounces(user: str, password: str, limit: int) -> list[dict]:
+    imap = imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=45)
+    imap.login(user, password)
     bounce_hits: list[dict] = []
     try:
         imap.select("INBOX")
-        # Recent mailer-daemon messages
         typ, data = imap.search(None, '(FROM "mailer-daemon")')
         if typ != "OK" or not data or not data[0]:
             typ, data = imap.search(None, '(FROM "mailer-daemon@googlemail.com")')
@@ -121,8 +103,7 @@ def check_bounces(limit: int = 40) -> dict:
             typ, msg_data = imap.fetch(num, "(RFC822)")
             if typ != "OK" or not msg_data or not msg_data[0]:
                 continue
-            raw = msg_data[0][1]
-            msg = email.message_from_bytes(raw)
+            msg = email.message_from_bytes(msg_data[0][1])
             text = _message_text(msg)
             addrs = _extract_failed_addresses(text)
             if not addrs:
@@ -142,13 +123,44 @@ def check_bounces(limit: int = 40) -> dict:
                 when_iso = when
             for addr in addrs:
                 bounce_hits.append(
-                    {"email": addr, "reason": reason, "subject": subj, "bounced_at": when_iso}
+                    {
+                        "email": addr,
+                        "reason": reason,
+                        "subject": subj,
+                        "bounced_at": when_iso,
+                        "inbox": user,
+                    }
                 )
     finally:
         try:
             imap.logout()
         except Exception:
             pass
+    return bounce_hits
+
+
+def check_bounces(limit: int = 40) -> dict:
+    """Scan bounce mail in EVERY configured Gmail account."""
+    from app.services.accounts import ready_accounts
+
+    accounts = ready_accounts()
+    if not accounts:
+        raise MailerError(
+            "Add Gmail App Passwords on Outreach for your accounts. Also enable IMAP on each Gmail."
+        )
+
+    bounce_hits: list[dict] = []
+    errors: list[str] = []
+    for acct in accounts:
+        user = acct["email"]
+        password = (acct.get("gmail_app_password") or "").strip().replace(" ", "")
+        try:
+            bounce_hits.extend(_scan_account_bounces(user, password, limit))
+        except imaplib.IMAP4.error as exc:
+            errors.append(f"{user}: {exc}")
+
+    if not bounce_hits and errors and not accounts:
+        raise MailerError("; ".join(errors))
 
     updated = 0
     matched: list[str] = []
@@ -163,7 +175,6 @@ def check_bounces(limit: int = 40) -> dict:
                 (hit["email"],),
             ).fetchall()
             for row in rows:
-                # Only flip messages we thought were sent (or already bounced — refresh reason)
                 if row["status"] not in ("sent", "bounced", "approved", "draft"):
                     continue
                 if row["status"] == "draft":
@@ -179,11 +190,13 @@ def check_bounces(limit: int = 40) -> dict:
                 )
                 updated += 1
                 matched.append(hit["email"])
-                break  # latest outreach row for that address
+                break
 
     return {
         "bounces_seen": len(bounce_hits),
         "unique_failed": len({h["email"] for h in bounce_hits}),
         "outreach_updated": updated,
         "addresses": sorted(set(matched)),
+        "inboxes_scanned": [a["email"] for a in accounts],
+        "errors": errors,
     }

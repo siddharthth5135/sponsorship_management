@@ -54,8 +54,21 @@ def _fit_line(event: dict, goal: str) -> str:
 def sender_profile() -> dict:
     path = sender_profile_path()
     if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
-    return {"name": "Siddharth Patel", "title": "", "email": "siddharththpatel@gmail.com", "phone": ""}
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    else:
+        raw = {
+            "name": "Siddharth Patel",
+            "title": "",
+            "email": "siddharththpatel@gmail.com",
+            "phone": "",
+        }
+    # Ensure dual-inbox structure without wiping passwords
+    try:
+        from app.services.accounts import ensure_dual_defaults
+
+        return ensure_dual_defaults(raw)
+    except Exception:
+        return raw
 
 
 def _signature(sender: dict) -> str:

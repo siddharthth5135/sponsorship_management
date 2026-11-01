@@ -92,32 +92,13 @@ def _notify_founder(brand: str, from_email: str, snippet: str) -> None:
             activity.log(f"Could not email alert to you: {exc}", level="warn", agent="Reply Watcher")
 
 
-def check_replies(limit: int = 40) -> dict:
-    ensure_schema()
-    if not gmail_ready():
-        return {"replies": 0, "error": "gmail_not_ready"}
-
-    profile = sender_profile()
-    user = (profile.get("email") or "").strip()
-    password = (profile.get("gmail_app_password") or "").strip().replace(" ", "")
-    activity.log(
-        "Checking Gmail inbox for brand replies…",
-        agent="Reply Watcher",
-        step=True,
-        meta={"phase": "inbox"},
-    )
-
-    try:
-        imap = imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=45)
-        imap.login(user, password)
-    except imaplib.IMAP4.error as exc:
-        raise MailerError(f"IMAP login failed: {exc}") from exc
-
+def _scan_inbox_replies(user: str, password: str, sent_addrs: dict, our_emails: set[str], limit: int) -> int:
+    """Return number of new lead alerts created from one inbox."""
+    imap = imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=45)
+    imap.login(user, password)
     matched = 0
-    seen_alerts = 0
     try:
         imap.select("INBOX")
-        # Unseen first, then recent
         typ, data = imap.search(None, "(UNSEEN)")
         ids = data[0].split() if typ == "OK" and data and data[0] else []
         if len(ids) < 5:
@@ -125,19 +106,6 @@ def check_replies(limit: int = 40) -> dict:
             extra = data2[0].split() if typ2 == "OK" and data2 and data2[0] else []
             ids = list(dict.fromkeys(list(ids) + extra[-limit:]))
         ids = ids[-limit:]
-
-        with get_conn() as conn:
-            sent_addrs = {
-                (r["to_email"] or "").lower(): dict(r)
-                for r in conn.execute(
-                    """
-                    SELECT id, to_email, to_name, target_id, target_type, subject
-                    FROM outreach WHERE status='sent' AND trim(ifnull(to_email,''))!=''
-                    ORDER BY id DESC
-                    """
-                ).fetchall()
-            }
-
         for num in reversed(ids):
             typ, msg_data = imap.fetch(num, "(RFC822)")
             if typ != "OK" or not msg_data or not msg_data[0]:
@@ -147,22 +115,17 @@ def check_replies(limit: int = 40) -> dict:
             from_email = (from_email or "").lower()
             if not from_email or any(s in from_email for s in SKIP_FROM):
                 continue
-            # Skip our own mail
-            if from_email == user.lower():
+            if from_email in our_emails:
                 continue
-
-            # Match by From address against sent outreach, or In-Reply-To / subject Re:
             hit = sent_addrs.get(from_email)
             subj = _decode(msg.get("Subject"))
             if not hit:
-                # Fuzzy: domain match against sent
                 domain = from_email.split("@")[-1]
                 for addr, row in sent_addrs.items():
                     if addr.endswith("@" + domain) and domain not in ("gmail.com", "yahoo.com", "outlook.com"):
                         hit = row
                         break
             if not hit and subj.lower().startswith("re:"):
-                # subject contains brand we mailed
                 for addr, row in sent_addrs.items():
                     name = (row.get("to_name") or "").lower()
                     if name and name[:12] in subj.lower():
@@ -170,13 +133,10 @@ def check_replies(limit: int = 40) -> dict:
                         break
             if not hit:
                 continue
-
             body = _body_text(msg)
             snippet = re.sub(r"\s+", " ", body).strip()[:600]
             brand = hit.get("to_name") or from_name or from_email
-
             with get_conn() as conn:
-                # Already alerted this from+outreach?
                 exists = conn.execute(
                     """
                     SELECT 1 FROM lead_alerts
@@ -199,25 +159,73 @@ def check_replies(limit: int = 40) -> dict:
                         "UPDATE brands SET status='interested', conversion_tier='hot', updated_at=datetime('now') WHERE id=?",
                         (hit["target_id"],),
                     )
-
             _notify_founder(brand, from_email, snippet or subj)
             matched += 1
-            seen_alerts += 1
     finally:
         try:
             imap.logout()
         except Exception:
             pass
+    return matched
+
+
+def check_replies(limit: int = 40) -> dict:
+    """Poll EVERY ready Gmail inbox for brand replies."""
+    from app.services.accounts import ready_accounts
+
+    ensure_schema()
+    accounts = ready_accounts()
+    if not accounts:
+        return {"replies": 0, "error": "gmail_not_ready"}
 
     activity.log(
-        f"Reply Watcher: {matched} new lead reply(ies)",
+        f"Checking {len(accounts)} Gmail inbox(es) for brand replies…",
+        agent="Reply Watcher",
+        step=True,
+        meta={"phase": "inbox"},
+    )
+
+    with get_conn() as conn:
+        sent_addrs = {
+            (r["to_email"] or "").lower(): dict(r)
+            for r in conn.execute(
+                """
+                SELECT id, to_email, to_name, target_id, target_type, subject
+                FROM outreach WHERE status='sent' AND trim(ifnull(to_email,''))!=''
+                ORDER BY id DESC
+                """
+            ).fetchall()
+        }
+
+    our_emails = {a["email"].lower() for a in accounts}
+    matched = 0
+    scanned = []
+    errors = []
+    for acct in accounts:
+        user = acct["email"]
+        password = (acct.get("gmail_app_password") or "").strip().replace(" ", "")
+        try:
+            n = _scan_inbox_replies(user, password, sent_addrs, our_emails, limit)
+            matched += n
+            scanned.append(user)
+            activity.log(
+                f"Inbox scanned: {user} (+{n} new replies)",
+                agent="Reply Watcher",
+                level="success" if n else "info",
+            )
+        except imaplib.IMAP4.error as exc:
+            errors.append(f"{user}: {exc}")
+            activity.log(f"IMAP failed for {user}: {exc}", level="warn", agent="Reply Watcher")
+
+    activity.log(
+        f"Reply Watcher: {matched} new lead reply(ies) across {len(scanned)} inbox(es)",
         level="success" if matched else "info",
         agent="Reply Watcher",
-        detail="Instant email + task created for each",
+        detail="; ".join(errors) if errors else "OK",
     )
     if matched:
         log_run("Reply Watcher", "replies", f"{matched} brand replies detected", matched, [])
-    return {"replies": matched, "alerts": seen_alerts}
+    return {"replies": matched, "alerts": matched, "inboxes": scanned, "errors": errors}
 
 
 def new_alerts(limit: int = 20) -> list[dict]:

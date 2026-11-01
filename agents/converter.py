@@ -33,7 +33,7 @@ def conversion_config(cfg: dict | None = None) -> dict:
         "followup_days": max(2, int(raw.get("followup_days", 2))),
         "send_delay_seconds": float(raw.get("send_delay_seconds", 0.7)),
         "scout_every_n_cycles": max(1, int(raw.get("scout_every_n_cycles", 2))),
-        "daily_send_cap": max(50, int(raw.get("daily_send_cap", 400))),
+        "daily_send_cap_per_account": max(50, int(raw.get("daily_send_cap_per_account", raw.get("daily_send_cap", 400)))),
         "mass_hunt_queries": max(10, int(raw.get("mass_hunt_queries", 60))),
         "mass_hunt_every_n_cycles": max(1, int(raw.get("mass_hunt_every_n_cycles", 1))),
     }
@@ -538,6 +538,13 @@ def run_conversion(cfg: dict | None = None, cycle_n: int = 1) -> dict:
     ensure_schema()
     sync_from_bounced_outreach()
     c = conversion_config(cfg)
+    try:
+        from app.services.accounts import ready_accounts
+
+        n_acct = max(1, len(ready_accounts()))
+    except Exception:
+        n_acct = 1
+    c["daily_send_cap"] = int(c["daily_send_cap_per_account"]) * n_acct
     activity.set_state(phase="converting")
     activity.log(
         "HARD conversion mode — mass Gujarat brands + auto-pitch (no bounce retries)",

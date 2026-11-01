@@ -31,19 +31,27 @@
 {% if flash_err %}<div class="alert alert-err">{{ flash_err }}</div>{% endif %}
 
 <section class="card">
-  <h2>Gmail auto-send</h2>
-  {% if gmail_ready %}
-  <p class="muted" style="margin-top:-0.35rem">Connected to {{ sender.email }}. “Send automatically” only means Gmail accepted the message — use <strong>Check bounces</strong> so undeliverable addresses (like Address not found) move back to To send. Enable IMAP once: Gmail → Settings → See all settings → Forwarding and POP/IMAP → Enable IMAP.</p>
-  {% else %}
-  <p class="muted" style="margin-top:-0.35rem">One-time setup: Google Account → Security → 2-Step Verification (on) → <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">App passwords</a> → create one for “Mail”, paste below. Also enable IMAP in Gmail settings for bounce checks.</p>
-  {% endif %}
+  <h2>Gmail accounts (rotate sends + monitor both)</h2>
+  <p class="muted" style="margin-top:-0.35rem">
+    We rotate between <strong>siddharththpatel@gmail.com</strong> and <strong>siddharthth5135@gmail.com</strong> so one inbox is less likely to get blocked.
+    Reply Watcher + bounce checks scan <strong>both</strong> every few minutes.
+    SMTP cannot use “Sign in with Google” — each account needs a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">Gmail App Password</a> + IMAP on.
+  </p>
+  <ul class="muted" style="font-size:13px;margin:0.5rem 0 0.75rem;padding-left:1.1rem">
+    {% for a in gmail_accounts %}
+    <li>{{ a.label }} — {{ a.email }} — {% if a.ready %}<span style="color:var(--ok)">ready</span>{% else %}<span style="color:var(--warn)">needs App Password</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
   <form method="post" action="/outreach/settings" class="form form-grid" style="margin-top:0.75rem">
     <input type="hidden" name="return_to" value="{{ meta.page }}">
-    <label class="span-2">Gmail App Password for {{ sender.email }}
-      <input name="gmail_app_password" type="password" autocomplete="off" placeholder="{% if gmail_ready %}•••••••••••••••• — paste a new one to replace{% else %}xxxx xxxx xxxx xxxx{% endif %}">
+    <label class="span-2">App Password — siddharththpatel@gmail.com
+      <input name="gmail_app_password" type="password" autocomplete="off" placeholder="xxxx xxxx xxxx xxxx">
+    </label>
+    <label class="span-2">App Password — siddharthth5135@gmail.com
+      <input name="gmail_app_password_secondary" type="password" autocomplete="off" placeholder="xxxx xxxx xxxx xxxx">
     </label>
     <div class="span-2 form-actions">
-      <button type="submit">{% if gmail_ready %}Update App Password{% else %}Save App Password{% endif %}</button>
+      <button type="submit">Save Gmail App Passwords</button>
     </div>
   </form>
 </section>

@@ -34,12 +34,18 @@ templates.env.globals["CATEGORIES"] = CATEGORIES
 
 
 def _save_sender_profile(updates: dict) -> dict:
-    profile = sender_profile()
-    profile.update({k: v for k, v in updates.items() if v is not None})
-    path = sender_profile_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(profile, indent=2) + "\n", encoding="utf-8")
-    return profile
+    from app.services.accounts import ensure_dual_defaults, save_profile
+
+    profile = ensure_dual_defaults(sender_profile())
+    # Flat updates (legacy)
+    for k, v in updates.items():
+        if v is None:
+            continue
+        if k == "gmail_accounts" and isinstance(v, list):
+            profile["gmail_accounts"] = v
+        else:
+            profile[k] = v
+    return save_profile(profile)
 
 
 def _outreach_redirect(msg: str = "", error: str = "", page: str = "/outreach/events") -> RedirectResponse:
@@ -635,6 +641,8 @@ def _render_outreach_page(request: Request, target_type: str):
         },
     }[target_type]
     sendable = [i for i in pending if (i.get("to_email") or "").strip()]
+    from app.services.accounts import account_status
+
     return templates.TemplateResponse(
         "outreach.html",
         {
@@ -649,6 +657,7 @@ def _render_outreach_page(request: Request, target_type: str):
             "meta": meta,
             "target_type": target_type,
             "gmail_ready": gmail_ready(),
+            "gmail_accounts": account_status(),
             "flash_ok": request.query_params.get("ok", ""),
             "flash_err": request.query_params.get("err", ""),
         },
@@ -658,13 +667,36 @@ def _render_outreach_page(request: Request, target_type: str):
 @app.post("/outreach/settings")
 def save_outreach_settings(
     gmail_app_password: str = Form(""),
+    gmail_app_password_secondary: str = Form(""),
     return_to: str = Form("/outreach/events"),
 ):
+    """Save App Passwords for primary + secondary Gmail (rotation + dual inbox monitor)."""
+    from app.services.accounts import ensure_dual_defaults, save_profile
+
     page = _safe_return_page(return_to, "/outreach/events")
-    _save_sender_profile({"gmail_app_password": gmail_app_password.strip()})
-    if gmail_app_password.strip():
-        return _outreach_redirect("Gmail App Password saved. You can use Send automatically now.", page=page)
-    return _outreach_redirect(error="App Password was cleared. Auto-send is off until you add one again.", page=page)
+    profile = ensure_dual_defaults(sender_profile())
+    accounts = profile.get("gmail_accounts") or []
+    by_email = {a["email"].lower(): a for a in accounts}
+    primary = "siddharththpatel@gmail.com"
+    secondary = "siddharthth5135@gmail.com"
+    if gmail_app_password.strip() and primary in by_email:
+        by_email[primary]["gmail_app_password"] = gmail_app_password.strip()
+        profile["gmail_app_password"] = gmail_app_password.strip()
+        profile["email"] = primary
+    if gmail_app_password_secondary.strip() and secondary in by_email:
+        by_email[secondary]["gmail_app_password"] = gmail_app_password_secondary.strip()
+    profile["gmail_accounts"] = list(by_email.values())
+    save_profile(profile)
+    ready_n = sum(1 for a in profile["gmail_accounts"] if (a.get("gmail_app_password") or "").strip())
+    if ready_n:
+        return _outreach_redirect(
+            f"Saved. {ready_n} Gmail account(s) ready — sends rotate; both inboxes monitored.",
+            page=page,
+        )
+    return _outreach_redirect(
+        error="No App Password saved. Add at least one to send.",
+        page=page,
+    )
 
 
 @app.post("/outreach/check-bounces")

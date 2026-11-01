@@ -193,9 +193,14 @@ def list_bounced_targets() -> list[dict]:
 
 def apply_rescue_and_send(dry_run: bool = False) -> dict:
     """Find alts for bounced addresses, update CRM, send onboard pitch + brochure."""
+    from agents.blacklist import mark_dead
+
     init_db()
     sender = sender_profile()
     targets = list_bounced_targets()
+    # Never retry the dead inbox itself
+    for t in targets:
+        mark_dead(t.get("to_email") or "", "bounced_no_retry", t.get("target_id"))
     activity.log(
         f"Contact Rescue starting — {len(targets)} unique dead inbox(es)",
         agent="Contact Rescue",
@@ -280,7 +285,11 @@ def apply_rescue_and_send(dry_run: bool = False) -> dict:
                     stats["phone_only"] += 1
 
         if alts and ready and not dry_run:
-            for alt in alts[:2]:  # try up to 2 alternates
+            from agents.blacklist import is_dead as _is_dead
+
+            for alt in alts[:2]:  # try up to 2 alternates — never the bounced address
+                if _is_dead(alt) or alt.lower() == dead:
+                    continue
                 subject, body = onboard_pitch({**brand, "contact_email": alt}, sender)
                 try:
                     activity.log(

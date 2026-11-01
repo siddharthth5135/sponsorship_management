@@ -900,12 +900,21 @@ def run_event_scout_now():
 @app.get("/agents", response_class=HTMLResponse)
 def agents_page(request: Request, ok: str = ""):
     from agents.activity import status_payload
+    from agents.blacklist import ensure_schema, remaining_quota
+    from agents.reply_watcher import new_alerts
 
+    ensure_schema()
     payload = status_payload(80)
     with get_conn() as conn:
         recent_runs = conn.execute(
             "SELECT * FROM agent_runs ORDER BY id DESC LIMIT 20"
         ).fetchall()
+        pipeline = {
+            "mass_brands": conn.execute(
+                "SELECT COUNT(*) FROM brands WHERE segment='mass_gujarat'"
+            ).fetchone()[0],
+            "total_brands": conn.execute("SELECT COUNT(*) FROM brands").fetchone()[0],
+        }
     hunter = payload["hunter"]
     return templates.TemplateResponse(
         "agents.html",
@@ -918,6 +927,9 @@ def agents_page(request: Request, ok: str = ""):
             "activity": payload["activity"],
             "team": payload["team"],
             "recent_runs": [dict(r) for r in recent_runs],
+            "alerts": new_alerts(20),
+            "pipeline": pipeline,
+            "quota": {"remaining": remaining_quota(400)},
         },
     )
 
@@ -952,11 +964,34 @@ def agents_resume():
 @app.get("/api/agents/live")
 def api_agents_live():
     from agents.activity import status_payload
+    from agents.blacklist import ensure_schema, remaining_quota, sent_today
     from agents.live_hunter import is_alive
+    from agents.reply_watcher import new_alerts
 
+    ensure_schema()
     payload = status_payload(80)
     payload["hunter"]["thread_alive"] = is_alive()
+    payload["alerts"] = new_alerts(15)
+    payload["quota"] = {"sent_today_cap_counter": sent_today(), "remaining": remaining_quota(400)}
+    with get_conn() as conn:
+        payload["pipeline"] = {
+            "mass_brands": conn.execute(
+                "SELECT COUNT(*) FROM brands WHERE segment='mass_gujarat'"
+            ).fetchone()[0],
+            "total_brands": conn.execute("SELECT COUNT(*) FROM brands").fetchone()[0],
+            "dead_emails": conn.execute("SELECT COUNT(*) FROM dead_emails").fetchone()[0],
+        }
     return payload
+
+
+@app.post("/agents/dismiss-alert/{alert_id}")
+def dismiss_alert(alert_id: int):
+    from agents.blacklist import ensure_schema
+
+    ensure_schema()
+    with get_conn() as conn:
+        conn.execute("UPDATE lead_alerts SET status='dismissed' WHERE id=?", (alert_id,))
+    return RedirectResponse("/agents", status_code=303)
 
 
 @app.post("/events/rescore")

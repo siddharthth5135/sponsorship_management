@@ -160,8 +160,8 @@ def _run_cycle() -> dict:
     ccfg = conversion_config(cfg)
     cycle_n = int(activity.get_state().get("cycle") or 1)
 
-    # 1) MAIN JOB — convert / pitch / auto-send
-    conv = run_conversion(cfg)
+    # 1) MAIN JOB — mass hunt + hard pitch + rescue + reply watch
+    conv = run_conversion(cfg, cycle_n=cycle_n)
 
     # 2) Keep fit scores warm every cycle (cheap, helps pitches)
     activity.log(
@@ -264,11 +264,21 @@ def _loop() -> None:
                 next_cycle_at=_iso_in(interval_min),
             )
 
-        # Sleep in chunks so pause / run-now can wake us
+        # Sleep in chunks; poll replies every ~3 min for instant lead alerts
         deadline = time.monotonic() + interval_min * 60
+        last_reply_check = 0.0
         while time.monotonic() < deadline and not _stop.is_set():
             if activity.get_state().get("paused"):
                 break
+            now = time.monotonic()
+            if now - last_reply_check >= 180:
+                last_reply_check = now
+                try:
+                    from agents.reply_watcher import check_replies
+
+                    check_replies(limit=30)
+                except Exception as exc:
+                    activity.log(f"Reply poll: {exc}", level="warn", agent="Reply Watcher")
             if _wake.wait(timeout=2):
                 _wake.clear()
                 if not activity.get_state().get("paused"):

@@ -1,15 +1,18 @@
 {
   "region": "Gujarat, India",
   "default_city": "Ahmedabad, Gujarat",
-  "interval_minutes": 15,
+  "interval_minutes": 10,
   "max_results_per_query": 20,
   "auto_promote_events": true,
   "conversion": {
     "auto_send": true,
-    "max_sends_per_cycle": 12,
-    "followup_days": 3,
-    "send_delay_seconds": 1.2,
-    "scout_every_n_cycles": 3
+    "max_sends_per_cycle": 50,
+    "followup_days": 2,
+    "send_delay_seconds": 0.6,
+    "scout_every_n_cycles": 2,
+    "daily_send_cap": 400,
+    "mass_hunt_queries": 80,
+    "mass_hunt_every_n_cycles": 1
   },
   "event_queries": [
     "events Ahmedabad November 2026",

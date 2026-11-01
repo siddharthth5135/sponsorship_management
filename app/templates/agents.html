@@ -24,6 +24,26 @@
 
 {% if ok %}<p class="flash ok">{{ ok }}</p>{% endif %}
 
+<section class="card" id="lead-alerts" style="border-color:#86efac;background:linear-gradient(135deg,#ecfdf5,#fff)">
+  <h2 style="margin:0 0 0.5rem">🔥 Instant lead alerts (brand replies)</h2>
+  <p class="muted" style="margin:0 0 0.75rem;font-size:13px">Reply Watcher checks Gmail every ~3 minutes. You also get an email to yourself when a brand replies.</p>
+  <div id="alerts-list">
+    {% for a in alerts %}
+    <article class="entity-card" style="border:1px solid #bbf7d0;margin-bottom:0.5rem">
+      <div class="entity-main">
+        <h3 style="margin:0 0 .25rem">{{ a.brand_name }}</h3>
+        <p class="desc-sub">{{ a.from_email }} · {{ a.snippet }}</p>
+      </div>
+      <div class="entity-side">
+        <form method="post" action="/agents/dismiss-alert/{{ a.id }}"><button class="btn btn-sm btn-ghost" type="submit">Dismiss</button></form>
+      </div>
+    </article>
+    {% else %}
+    <p class="muted" id="no-alerts">No new replies yet — hunting &amp; pitching hard.</p>
+    {% endfor %}
+  </div>
+</section>
+
 <div class="agent-status-board" id="hunter-status" data-poll="/api/agents/live">
   <div class="agent-now card">
     <div class="agent-now-top">
@@ -48,6 +68,8 @@
     <div class="stat"><div class="stat-label">Blithchron left</div><span id="conv-blith">{{ conversion.blithchron_unsent_email or 0 }}</span></div>
     <div class="stat"><div class="stat-label">Sends this session</div><span id="find-sent">{{ finds.sent or 0 }}</span></div>
     <div class="stat"><div class="stat-label">Follow-ups</div><span id="find-followups">{{ finds.followups or 0 }}</span></div>
+    <div class="stat"><div class="stat-label">Mass Gujarat brands</div><span id="mass-brands">{{ pipeline.mass_brands or 0 }}</span></div>
+    <div class="stat"><div class="stat-label">Gmail quota left today</div><span id="quota-left">{{ quota.remaining or '—' }}</span></div>
   </div>
 </div>
 
@@ -176,6 +198,21 @@
     const h = data.hunter || {};
     const finds = h.finds_today || {};
     const conv = data.conversion || {};
+    const pipe = data.pipeline || {};
+    const quota = data.quota || {};
+    const alerts = data.alerts || [];
+    const alertsList = document.getElementById("alerts-list");
+    if (alertsList) {
+      if (!alerts.length) {
+        alertsList.innerHTML = '<p class="muted" id="no-alerts">No new replies yet — hunting &amp; pitching hard.</p>';
+      } else {
+        alertsList.innerHTML = alerts.map(function (a) {
+          return '<article class="entity-card" style="border:1px solid #bbf7d0;margin-bottom:0.5rem"><div class="entity-main"><h3 style="margin:0 0 .25rem">' +
+            escapeHtml(a.brand_name) + '</h3><p class="desc-sub">' + escapeHtml(a.from_email) + ' · ' +
+            escapeHtml(a.snippet || '') + '</p></div></article>';
+        }).join("");
+      }
+    }
     const pulse = document.getElementById("pulse");
     if (pulse) {
       pulse.className = "hunter-pulse " + (h.enabled === false ? "off" : h.paused ? "paused" : "on");
@@ -196,6 +233,8 @@
     set("conv-blith", conv.blithchron_unsent_email || 0);
     set("find-sent", finds.sent || 0);
     set("find-followups", finds.followups || 0);
+    set("mass-brands", pipe.mass_brands || 0);
+    set("quota-left", quota.remaining != null ? quota.remaining : "—");
     renderActivity(data.activity || []);
   }
 

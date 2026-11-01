@@ -243,6 +243,9 @@ def row_to_dict(row: sqlite3.Row | None) -> dict | None:
 
 TABLES_CLEAR_ORDER = [
     "founder_tasks",
+    "lead_alerts",
+    "dead_emails",
+    "send_quota",
     "agent_activity",
     "agent_runs",
     "outreach",

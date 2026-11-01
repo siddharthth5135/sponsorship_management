@@ -29,10 +29,13 @@ def conversion_config(cfg: dict | None = None) -> dict:
     return {
         "auto_send": bool(raw.get("auto_send", True))
         and os.environ.get("AUTO_SEND", "1").strip().lower() not in ("0", "false", "off", "no"),
-        "max_sends_per_cycle": max(1, int(raw.get("max_sends_per_cycle", 12))),
-        "followup_days": max(2, int(raw.get("followup_days", 3))),
-        "send_delay_seconds": float(raw.get("send_delay_seconds", 1.2)),
-        "scout_every_n_cycles": max(1, int(raw.get("scout_every_n_cycles", 3))),
+        "max_sends_per_cycle": max(1, int(raw.get("max_sends_per_cycle", 40))),
+        "followup_days": max(2, int(raw.get("followup_days", 2))),
+        "send_delay_seconds": float(raw.get("send_delay_seconds", 0.7)),
+        "scout_every_n_cycles": max(1, int(raw.get("scout_every_n_cycles", 2))),
+        "daily_send_cap": max(50, int(raw.get("daily_send_cap", 400))),
+        "mass_hunt_queries": max(10, int(raw.get("mass_hunt_queries", 60))),
+        "mass_hunt_every_n_cycles": max(1, int(raw.get("mass_hunt_every_n_cycles", 1))),
     }
 
 
@@ -223,8 +226,11 @@ def prepare_pitches() -> dict:
     }
 
 
-def auto_send_pitches(max_sends: int = 12, delay: float = 1.2) -> dict:
-    """Send approved/draft emails now — no founder click required."""
+def auto_send_pitches(max_sends: int = 12, delay: float = 1.2, daily_cap: int = 400) -> dict:
+    """Send approved/draft emails now — skips blacklisted bounces; respects daily Gmail cap."""
+    from agents.blacklist import bump_sent, ensure_schema, is_dead, mark_dead, remaining_quota
+
+    ensure_schema()
     if not gmail_ready():
         activity.log(
             "Cannot auto-send — add Gmail App Password on Outreach first",
@@ -236,8 +242,19 @@ def auto_send_pitches(max_sends: int = 12, delay: float = 1.2) -> dict:
         )
         return {"sent": 0, "errors": ["gmail_not_ready"], "skipped": 0}
 
+    left = remaining_quota(daily_cap)
+    if left <= 0:
+        activity.log(
+            f"Daily send cap ({daily_cap}) hit — resume tomorrow (Gmail safety)",
+            level="warn",
+            agent="Closer",
+            step=True,
+        )
+        return {"sent": 0, "errors": ["daily_cap"], "attempted": 0, "remaining_quota": 0}
+    max_sends = min(max_sends, left)
+
     activity.log(
-        f"Auto-sending up to {max_sends} conversion emails (no approval wait)…",
+        f"Auto-sending up to {max_sends} (quota left {left}) — never retrying dead emails",
         agent="Closer",
         step=True,
         meta={"phase": "sending"},
@@ -251,12 +268,15 @@ def auto_send_pitches(max_sends: int = 12, delay: float = 1.2) -> dict:
                 SELECT * FROM outreach
                 WHERE status IN ('draft','approved')
                   AND trim(ifnull(to_email,'')) != ''
+                  AND lower(to_email) NOT IN (SELECT email FROM dead_emails)
                 ORDER BY
                   CASE
-                    WHEN agent_name='brochure' THEN 0
-                    WHEN agent_name IN ('blithchron27','blithchron27_local') THEN 1
-                    WHEN agent_name='outreach_writer' THEN 2
-                    ELSE 3
+                    WHEN agent_name='contact_rescue' THEN 0
+                    WHEN agent_name='brochure' THEN 1
+                    WHEN agent_name='mass_pitch' THEN 2
+                    WHEN agent_name IN ('blithchron27','blithchron27_local') THEN 3
+                    WHEN agent_name='outreach_writer' THEN 4
+                    ELSE 5
                   END,
                   id ASC
                 LIMIT ?
@@ -268,8 +288,10 @@ def auto_send_pitches(max_sends: int = 12, delay: float = 1.2) -> dict:
     sent = 0
     errors: list[str] = []
     for row in rows:
-        to_email = (row.get("to_email") or "").strip()
+        to_email = (row.get("to_email") or "").strip().lower()
         name = row.get("to_name") or to_email
+        if is_dead(to_email):
+            continue
         try:
             activity.log(
                 f"Sending pitch → {name} <{to_email}>",
@@ -293,6 +315,7 @@ def auto_send_pitches(max_sends: int = 12, delay: float = 1.2) -> dict:
                     """,
                     (row["id"],),
                 )
+            bump_sent(1)
             sent += 1
             activity.bump_finds(sent=1)
             activity.log(
@@ -306,13 +329,16 @@ def auto_send_pitches(max_sends: int = 12, delay: float = 1.2) -> dict:
                 time.sleep(delay)
         except MailerError as exc:
             errors.append(f"{to_email}: {exc}")
+            msg = str(exc).lower()
+            if "not found" in msg or "undeliverable" in msg:
+                mark_dead(to_email, str(exc)[:200], row.get("target_id"))
             with get_conn() as conn:
                 conn.execute(
-                    "UPDATE outreach SET send_error=?, status='approved' WHERE id=?",
+                    "UPDATE outreach SET send_error=?, status='bounced' WHERE id=?",
                     (str(exc)[:400], row["id"]),
                 )
             activity.log(
-                f"Send failed → {name}",
+                f"Send failed → {name} (blacklisted if bounce)",
                 level="error",
                 agent="Closer",
                 detail=str(exc)[:400],
@@ -326,14 +352,14 @@ def auto_send_pitches(max_sends: int = 12, delay: float = 1.2) -> dict:
             )
 
     activity.log(
-        f"Closer finished — {sent} sent, {len(errors)} failed, {max(0, max_sends - len(rows))} unused slots",
+        f"Closer finished — {sent} sent, {len(errors)} failed, quota left {remaining_quota(daily_cap)}",
         level="success" if sent else "warn",
         agent="Closer",
         detail="; ".join(errors[:5]) if errors else "All good",
         meta={"phase": "sending"},
     )
     log_run("Closer", "auto_send", f"Sent {sent} pitches automatically", sent, [])
-    return {"sent": sent, "errors": errors, "attempted": len(rows)}
+    return {"sent": sent, "errors": errors, "attempted": len(rows), "remaining_quota": remaining_quota(daily_cap)}
 
 
 def send_followups(followup_days: int = 3, max_sends: int = 6, delay: float = 1.2) -> dict:
@@ -505,26 +531,44 @@ def conversion_snapshot() -> dict:
         }
 
 
-def run_conversion(cfg: dict | None = None) -> dict:
-    """Full conversion pass: pitch → auto-send → follow-up → bounce check."""
+def run_conversion(cfg: dict | None = None, cycle_n: int = 1) -> dict:
+    """Full conversion pass: mass hunt → pitch → auto-send → follow-up → bounce → rescue → replies."""
+    from agents.blacklist import ensure_schema, sync_from_bounced_outreach
+
+    ensure_schema()
+    sync_from_bounced_outreach()
     c = conversion_config(cfg)
     activity.set_state(phase="converting")
     activity.log(
-        "Conversion mode — pitching and messaging clients without waiting for approval",
+        "HARD conversion mode — mass Gujarat brands + auto-pitch (no bounce retries)",
         level="info",
         agent="Closer",
         step=True,
         meta={"phase": "converting"},
     )
 
+    hunt = {}
+    if cycle_n % int(c["mass_hunt_every_n_cycles"]) == 0:
+        try:
+            from agents.mass_brand_hunter import run_mass_hunt
+
+            hunt = run_mass_hunt(max_queries=int(c["mass_hunt_queries"]))
+        except Exception as exc:
+            activity.log(f"Mass hunt error: {exc}", level="warn", agent="Mass Hunter")
+            hunt = {"error": str(exc)[:200]}
+
     pitches = prepare_pitches()
     send_stats = {"sent": 0, "errors": [], "attempted": 0}
     follow_stats = {"sent": 0}
     if c["auto_send"]:
-        send_stats = auto_send_pitches(c["max_sends_per_cycle"], c["send_delay_seconds"])
+        send_stats = auto_send_pitches(
+            c["max_sends_per_cycle"],
+            c["send_delay_seconds"],
+            daily_cap=c["daily_send_cap"],
+        )
         follow_stats = send_followups(
             c["followup_days"],
-            max_sends=max(3, c["max_sends_per_cycle"] // 2),
+            max_sends=max(3, min(10, c["max_sends_per_cycle"] // 3)),
             delay=c["send_delay_seconds"],
         )
     else:
@@ -535,13 +579,21 @@ def run_conversion(cfg: dict | None = None) -> dict:
         )
 
     bounces = check_inbox_bounces()
+    try:
+        from agents.blacklist import mark_dead
+
+        for addr in bounces.get("addresses") or []:
+            mark_dead(addr, "gmail_bounce")
+    except Exception:
+        pass
+
     rescue = {}
     try:
         from agents.contact_rescue import apply_rescue_and_send
 
         if int(bounces.get("outreach_updated") or 0) > 0 or int(bounces.get("bounces_seen") or 0) > 0:
             activity.log(
-                "Dead inboxes detected — Contact Rescue finding alternate emails…",
+                "Dead inboxes — Contact Rescue finds ALTERNATES (never retry same email)",
                 agent="Contact Rescue",
                 step=True,
                 meta={"phase": "rescue"},
@@ -551,22 +603,34 @@ def run_conversion(cfg: dict | None = None) -> dict:
         activity.log(f"Contact Rescue skipped: {exc}", level="warn", agent="Contact Rescue")
         rescue = {"error": str(exc)[:200]}
 
+    replies = {}
+    try:
+        from agents.reply_watcher import check_replies
+
+        replies = check_replies(limit=50)
+    except Exception as exc:
+        activity.log(f"Reply Watcher skipped: {exc}", level="warn", agent="Reply Watcher")
+        replies = {"error": str(exc)[:200]}
+
     snap = conversion_snapshot()
     summary = (
-        f"Conversion: {send_stats.get('sent', 0)} new sends, "
+        f"Conversion: hunt +{hunt.get('brands_added', 0)} brands · "
+        f"{send_stats.get('sent', 0)} sends · "
         f"{follow_stats.get('sent', 0)} follow-ups · "
-        f"rescue sent {rescue.get('sent', 0)} · "
-        f"{snap['awaiting_reply']} awaiting reply · "
-        f"{snap['drafts_ready']} still queued"
+        f"rescue {rescue.get('sent', 0)} · "
+        f"REPLIES {replies.get('replies', 0)} · "
+        f"awaiting {snap['awaiting_reply']}"
     )
     activity.log(summary, level="success", agent="Closer", meta={"phase": "converting", **snap})
     log_run("Closer", "conversion", summary, int(send_stats.get("sent") or 0), [])
     return {
+        "hunt": hunt,
         "pitches": pitches,
         "send": send_stats,
         "followups": follow_stats,
         "bounces": bounces,
         "rescue": rescue,
+        "replies": replies,
         "snapshot": snap,
         "auto_send": c["auto_send"],
     }

@@ -11,6 +11,12 @@ from app.paths import sender_profile_path
 
 PROFILE_PATH = sender_profile_path()
 
+# Official Blithchron '27 sponsorship brochure (Drive)
+BLITHCHRON_BROCHURE_URL = (
+    "https://drive.google.com/file/d/1krYH0O00IcL654k4cNzImwliUc2oGPKO/view"
+)
+
+
 FIT_LINES = {
     "College cultural fest": {
         "sampling": "a sampling counter puts your product in thousands of students' hands in one weekend",
@@ -151,11 +157,35 @@ I'm {sender['name'].split()[0]}. I'm working with Blithchron '27 — IIT Gandhin
 
 Quick facts: ~22,000 footfall, two Pronites (6,000+ per night), 100+ partner colleges across Gujarat. Past associates include Central Bank of India (Title '25), Coca-Cola, Monster, Maggi and The Souled Store.
 
+Official sponsorship brochure (tiers, deliverables, past sponsors):
+{BLITHCHRON_BROCHURE_URL}
+
 For {name} we're proposing: {package} (indicative band {ask}). {pitch}
 
 For brands there is no fee from our side — you only pay the fest for the package you approve. Category exclusivity is available on a first-come basis for Energy / Beverage / Hydration / Banking.
 
-Could we do a 15-minute call this week? Or reply with the right person for campus / brand partnerships and I'll send a one-page deliverables note.
+Could we do a 15-minute call this week after you've glanced at the brochure? Or reply with the right person for campus / brand partnerships.
+
+{_signature(sender)}"""
+    return subject, body
+
+
+def blithchron_brochure_email(brand: dict, sender: dict | None = None) -> tuple[str, str]:
+    """Short share of the official brochure — for everyone, including prior pitches."""
+    sender = sender or sender_profile()
+    first = _first_name(brand.get("contact_name"))
+    name = brand.get("name") or "your brand"
+    greeting = f"Hi {first}," if first else f"Hi {name} team,"
+    subject = f"Blithchron '27 sponsorship brochure — IIT Gandhinagar (4–7 Feb)"
+    body = f"""{greeting}
+
+Sharing the official Blithchron '27 sponsorship brochure so you have a clear picture of the fest, packages, deliverables and past sponsors:
+
+{BLITHCHRON_BROCHURE_URL}
+
+Blithchron is IIT Gandhinagar's annual cultural fest (4–7 February 2027) — ~22,000 footfall, two Pronites. From the brand side there is no brokerage fee; you only pay the fest for the package you approve.
+
+Happy to walk you through a fit for {name} on a 10-minute call after you've opened the PDF.
 
 {_signature(sender)}"""
     return subject, body

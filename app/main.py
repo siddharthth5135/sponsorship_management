@@ -1143,6 +1143,7 @@ def blithchron_page(request: Request):
     remaining = sum(1 for r in rows if r["outreach_status"] != "sent")
     sent_count = sum(1 for r in rows if r["outreach_status"] == "sent")
     sender = sender_profile()
+    from app.services.emails import BLITHCHRON_BROCHURE_URL
 
     # Preload WA URLs for sequential opener (national no-email + local with phone)
     wa_queue = [
@@ -1174,10 +1175,35 @@ def blithchron_page(request: Request):
             "sent_count": sent_count,
             "sender": sender,
             "gmail_ready": gmail_ready(),
+            "brochure_url": BLITHCHRON_BROCHURE_URL,
             "flash_ok": request.query_params.get("ok", ""),
             "flash_err": request.query_params.get("err", ""),
         },
     )
+
+
+@app.post("/blithchron/send-brochure")
+def blithchron_send_brochure():
+    """Queue + send official brochure Drive link to every Blithchron email lead."""
+    from agents.converter import auto_send_pitches, queue_brochure_to_everyone
+
+    if not gmail_ready():
+        return _outreach_redirect(
+            error="Add Gmail App Password on Outreach first — then tap Send brochure again.",
+            page="/blithchron",
+        )
+    queued = queue_brochure_to_everyone()
+    result = auto_send_pitches(max_sends=max(50, queued or 12), delay=1.0)
+    sent = int(result.get("sent") or 0)
+    errs = result.get("errors") or []
+    msg = f"Brochure link queued for {queued}. Sent {sent} emails with the PDF."
+    if errs:
+        return _outreach_redirect(
+            msg=msg,
+            error=f"{len(errs)} failed — check Closer feed / send errors.",
+            page="/blithchron",
+        )
+    return _outreach_redirect(msg, page="/blithchron")
 
 
 @app.post("/blithchron/send-all")
@@ -1188,9 +1214,9 @@ def blithchron_send_all():
             for r in conn.execute(
                 """
                 SELECT * FROM outreach
-                WHERE agent_name IN ('blithchron27','blithchron27_local') AND status!='sent'
+                WHERE agent_name IN ('blithchron27','blithchron27_local','brochure') AND status!='sent'
                   AND ifnull(to_email,'') != ''
-                ORDER BY id
+                ORDER BY CASE agent_name WHEN 'brochure' THEN 0 ELSE 1 END, id
                 """
             ).fetchall()
         ]

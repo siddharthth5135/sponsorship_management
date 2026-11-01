@@ -14,7 +14,12 @@ from agents import activity
 from agents.orchestrator import agent_outreach_writer, log_run
 from app.database import get_conn
 from app.services.bounces import check_bounces
-from app.services.emails import blithchron_brand_email, sender_profile
+from app.services.emails import (
+    BLITHCHRON_BROCHURE_URL,
+    blithchron_brand_email,
+    blithchron_brochure_email,
+    sender_profile,
+)
 from app.services.mailer import MailerError, gmail_ready, send_email
 from app.services.messaging import pitch_text
 
@@ -112,14 +117,84 @@ def _queue_phone_pitches(limit: int = 20) -> int:
     return queued
 
 
+def queue_brochure_to_everyone() -> int:
+    """Create approved brochure-share drafts for every Blithchron email lead not yet sent the PDF."""
+    sender = sender_profile()
+    queued = 0
+    with get_conn() as conn:
+        brands = conn.execute(
+            """
+            SELECT * FROM brands
+            WHERE segment IN ('blithchron27','blithchron27_local')
+              AND trim(ifnull(contact_email,'')) != ''
+            ORDER BY conversion_tier DESC, id
+            """
+        ).fetchall()
+        for row in brands:
+            b = dict(row)
+            already = conn.execute(
+                """
+                SELECT id, status FROM outreach
+                WHERE target_type='brand' AND target_id=? AND agent_name='brochure'
+                ORDER BY id DESC LIMIT 1
+                """,
+                (b["id"],),
+            ).fetchone()
+            if already and already["status"] == "sent":
+                continue
+            # Skip if any sent mail to this brand already included the Drive file
+            prior = conn.execute(
+                """
+                SELECT id FROM outreach
+                WHERE target_type='brand' AND target_id=? AND status='sent'
+                  AND body LIKE '%1krYH0O00IcL654k4cNzImwliUc2oGPKO%'
+                LIMIT 1
+                """,
+                (b["id"],),
+            ).fetchone()
+            if prior:
+                continue
+            subject, body = blithchron_brochure_email(b, sender)
+            to_name = b.get("contact_name") or b["name"]
+            to_email = (b.get("contact_email") or "").strip()
+            if already:
+                conn.execute(
+                    """
+                    UPDATE outreach SET subject=?, body=?, to_name=?, to_email=?, from_email=?,
+                      founder_approved=1, status='approved', send_error=''
+                    WHERE id=?
+                    """,
+                    (subject, body, to_name, to_email, sender.get("email") or "", already["id"]),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO outreach (
+                        target_type, target_id, channel, subject, body, status, agent_name,
+                        to_name, to_email, from_email, founder_approved
+                    ) VALUES ('brand', ?, 'email', ?, ?, 'approved', 'brochure', ?, ?, ?, 1)
+                    """,
+                    (b["id"], subject, body, to_name, to_email, sender.get("email") or ""),
+                )
+            queued += 1
+            activity.log(
+                f"Brochure queued → {b['name']}",
+                agent="Closer",
+                detail=BLITHCHRON_BROCHURE_URL,
+                meta={"brand_id": b["id"], "channel": "brochure"},
+            )
+    return queued
+
+
 def prepare_pitches() -> dict:
     """Write / refresh conversion pitches. Marks email drafts approved for auto-send."""
     activity.log(
-        "Writing conversion pitches (Blithchron + Gujarat book)…",
+        "Writing conversion pitches + attaching official brochure link…",
         agent="Pitch Writer",
         step=True,
         meta={"phase": "pitching"},
     )
+    brochure_n = queue_brochure_to_everyone()
     blith = _refresh_blithchron_pitches()
     general = agent_outreach_writer()
     # Mark unsent drafts with emails as approved so converter can fire them
@@ -134,14 +209,19 @@ def prepare_pitches() -> dict:
             """
         )
     wa = _queue_phone_pitches()
-    activity.bump_finds(drafts=blith + general)
+    activity.bump_finds(drafts=blith + general + brochure_n)
     activity.log(
-        f"Pitches ready — {blith} Blithchron, {general} general drafts, {wa} WhatsApp-ready",
+        f"Pitches ready — {brochure_n} brochure shares, {blith} Blithchron, {general} general, {wa} WhatsApp-ready",
         level="success",
         agent="Pitch Writer",
-        detail="Email drafts are approved for auto-send. WhatsApp still needs a tap (or SMS gateway).",
+        detail=f"Brochure: {BLITHCHRON_BROCHURE_URL}",
     )
-    return {"blithchron_pitches": blith, "general_drafts": general, "whatsapp_ready": wa}
+    return {
+        "brochure_queued": brochure_n,
+        "blithchron_pitches": blith,
+        "general_drafts": general,
+        "whatsapp_ready": wa,
+    }
 
 
 def auto_send_pitches(max_sends: int = 12, delay: float = 1.2) -> dict:
@@ -174,9 +254,10 @@ def auto_send_pitches(max_sends: int = 12, delay: float = 1.2) -> dict:
                   AND trim(ifnull(to_email,'')) != ''
                 ORDER BY
                   CASE
-                    WHEN agent_name IN ('blithchron27','blithchron27_local') THEN 0
-                    WHEN agent_name='outreach_writer' THEN 1
-                    ELSE 2
+                    WHEN agent_name='brochure' THEN 0
+                    WHEN agent_name IN ('blithchron27','blithchron27_local') THEN 1
+                    WHEN agent_name='outreach_writer' THEN 2
+                    ELSE 3
                   END,
                   id ASC
                 LIMIT ?

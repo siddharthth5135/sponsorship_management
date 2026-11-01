@@ -5,10 +5,13 @@ from __future__ import annotations
 from urllib.parse import quote
 
 
+BROCHURE_URL = "https://drive.google.com/file/d/1krYH0O00IcL654k4cNzImwliUc2oGPKO/view"
+
 PITCH_TEMPLATE = (
     "Hi, I'm reaching out about Blithchron '27 — IIT Gandhinagar's annual cultural fest "
     "(4–7 Feb 2027). ~22,000 footfall, two Pronites with 6,000+ a night, 100+ partner colleges. "
     "Past associates include CBI, Coca-Cola, Monster, Maggi. "
+    "Official brochure: {brochure} "
     "For {brand} we're proposing {package} (around {ask}). "
     "No fee from our side — you only pay the fest for the package you approve. "
     "Category exclusivity available first-come. Can we do a 10-min call this week?"
@@ -20,6 +23,7 @@ def pitch_text(brand: dict) -> str:
         brand=brand.get("name") or "your brand",
         package=brand.get("package") or brand.get("category") or "Associate / stall partner",
         ask=brand.get("ask_inr") or brand.get("ask") or "a flexible local package",
+        brochure=BROCHURE_URL,
     )
 
 

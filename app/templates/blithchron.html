@@ -7,9 +7,12 @@
     <p>National {{ total }} · Local AMD/GN {{ local_total }} · Email {{ emailable }} · WhatsApp queue {{ wa_count }} · No-email national {{ no_email_count }}</p>
   </div>
   <div class="outreach-header-actions">
+    <form method="post" action="/blithchron/send-brochure" onsubmit="return confirm('Email the official sponsorship brochure (Drive PDF) to every Blithchron lead with an email?');">
+      <button type="submit" class="btn">Send brochure to all emails</button>
+    </form>
     {% if sendable_count or sendable_local_count %}
     <form method="post" action="/blithchron/send-all" onsubmit="return confirm('Send all Blithchron emails with addresses (national + local) from {{ sender.email }}?');">
-      <button type="submit" class="btn">Email all with address ({{ sendable_count + sendable_local_count }})</button>
+      <button type="submit" class="btn btn-secondary">Email all pitches ({{ sendable_count + sendable_local_count }})</button>
     </form>
     {% endif %}
     {% if wa_count %}
@@ -27,6 +30,12 @@
 
 {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
 {% if flash_err %}<div class="alert alert-err">{{ flash_err }}</div>{% endif %}
+
+<section class="card">
+  <h2>Official sponsorship brochure</h2>
+  <p style="margin:0 0 0.75rem;font-size:14px;color:var(--text-secondary)">Every new pitch and WhatsApp copy includes this PDF. Tap <strong>Send brochure to all emails</strong> to push it to every lead who has an inbox (needs Gmail App Password on Outreach).</p>
+  <p style="margin:0"><a class="btn btn-secondary" href="{{ brochure_url }}" target="_blank" rel="noopener">Open brochure PDF</a></p>
+</section>
 
 <section class="card" id="message-queue">
   <h2>One-click for the {{ no_email_count }} national leads without email</h2>
